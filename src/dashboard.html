@@ -489,6 +489,28 @@
                         </p>
                     </div>
                 </div>
+                
+                <div class="settings-card">
+                    <h3>🧪 データ取得テスト</h3>
+                    <div id="api-test-section">
+                        <p>Threads APIから実際のデータを取得してテーブルに反映します</p>
+                        <div id="test-controls" style="margin: 15px 0;">
+                            <button id="test-api-btn" onclick="testThreadsApi()" style="background: #1976d2; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+                                📊 データ取得テスト
+                            </button>
+                            <button id="refresh-data-btn" onclick="refreshTableData()" style="background: #388e3c; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+                                🔄 テーブル更新
+                            </button>
+                        </div>
+                        <div id="test-status" style="margin: 10px 0; padding: 10px; border-radius: 4px; display: none;">
+                            <span id="test-message">待機中...</span>
+                        </div>
+                        <div id="test-results" style="margin-top: 15px; display: none;">
+                            <h4>取得データプレビュー:</h4>
+                            <pre id="test-data" style="background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px; max-height: 200px; overflow-y: auto;"></pre>
+                        </div>
+                    </div>
+                </div>
                 <div class="report-card">
                     <h3>🎨 自動ハイライト設定 (プレミアム)</h3>
                     <p>当月の平均値と比較して、指定倍率を超えたら色を変更します。</p>
@@ -602,6 +624,133 @@
                         alert('APIキーの削除に失敗しました: ' + error.message);
                     })
                     .deleteApiKey();
+            }
+
+            // APIテスト機能
+            function testThreadsApi() {
+                showTestStatus('loading', '🔄 APIキーを確認中...');
+                
+                google.script.run
+                    .withSuccessHandler(function(hasKey) {
+                        if (!hasKey) {
+                            showTestStatus('error', '❌ APIキーが設定されていません。まずAPIキーを設定してください。');
+                            return;
+                        }
+                        
+                        showTestStatus('loading', '📡 Threads APIからデータを取得中...');
+                        
+                        google.script.run
+                            .withSuccessHandler(function(result) {
+                                if (result.success) {
+                                    showTestStatus('success', '✅ データ取得成功！');
+                                    showTestResults(result.data);
+                                } else {
+                                    showTestStatus('error', '❌ エラー: ' + result.message);
+                                }
+                            })
+                            .withFailureHandler(function(error) {
+                                console.error('API テストエラー:', error);
+                                showTestStatus('error', '❌ API呼び出しに失敗しました: ' + error.message);
+                            })
+                            .testThreadsApiConnection();
+                    })
+                    .withFailureHandler(function(error) {
+                        console.error('APIキー確認エラー:', error);
+                        showTestStatus('error', '❌ APIキー確認に失敗しました: ' + error.message);
+                    })
+                    .hasApiKey();
+            }
+
+            function refreshTableData() {
+                showTestStatus('loading', '🔄 テーブルデータを更新中...');
+                
+                google.script.run
+                    .withSuccessHandler(function(result) {
+                        if (result.success) {
+                            showTestStatus('success', '✅ テーブル更新完了！');
+                            updateDataTable(result.data);
+                        } else {
+                            showTestStatus('error', '❌ エラー: ' + result.message);
+                        }
+                    })
+                    .withFailureHandler(function(error) {
+                        console.error('テーブル更新エラー:', error);
+                        showTestStatus('error', '❌ テーブル更新に失敗しました: ' + error.message);
+                    })
+                    .fetchAndUpdateTableData();
+            }
+
+            function showTestStatus(type, message) {
+                var statusDiv = document.getElementById('test-status');
+                var messageSpan = document.getElementById('test-message');
+                
+                statusDiv.style.display = 'block';
+                messageSpan.textContent = message;
+                
+                // スタイル設定
+                statusDiv.className = '';
+                if (type === 'loading') {
+                    statusDiv.style.background = '#e3f2fd';
+                    statusDiv.style.color = '#1976d2';
+                    statusDiv.style.border = '1px solid #bbdefb';
+                } else if (type === 'success') {
+                    statusDiv.style.background = '#e8f5e8';
+                    statusDiv.style.color = '#2e7d32';
+                    statusDiv.style.border = '1px solid #c8e6c9';
+                } else if (type === 'error') {
+                    statusDiv.style.background = '#ffebee';
+                    statusDiv.style.color = '#c62828';
+                    statusDiv.style.border = '1px solid #ffcdd2';
+                }
+            }
+
+            function showTestResults(data) {
+                var resultsDiv = document.getElementById('test-results');
+                var dataPreElement = document.getElementById('test-data');
+                
+                resultsDiv.style.display = 'block';
+                dataPreElement.textContent = JSON.stringify(data, null, 2);
+            }
+
+            function updateDataTable(data) {
+                // データテーブルの更新ロジック
+                // 実際のテーブル要素を更新
+                if (data && data.posts && data.posts.length > 0) {
+                    // 最新3件の投稿でテーブルを更新
+                    var posts = data.posts.slice(0, 3);
+                    
+                    // 投稿文の更新
+                    var postTextCells = document.querySelectorAll('.post-text-row td');
+                    posts.forEach(function(post, index) {
+                        if (postTextCells[index]) {
+                            postTextCells[index].innerHTML = post.text.substring(0, 100) + (post.text.length > 100 ? '...' : '');
+                        }
+                    });
+                    
+                    // メトリクスの更新
+                    updateMetricRow('インプ(12h)', posts.map(p => p.insights.views || 0));
+                    updateMetricRow('いいね(12h)', posts.map(p => p.insights.likes || 0));
+                    updateMetricRow('再投稿/引用(12h)', posts.map(p => (p.insights.reposts || 0) + (p.insights.quotes || 0)));
+                    updateMetricRow('リプライ(12h)', posts.map(p => p.insights.replies || 0));
+                    updateMetricRow('Eng総数(12h)', posts.map(p => p.insights.totalEngagement || 0));
+                    updateMetricRow('Eng率(12h)', posts.map(p => p.insights.engagementRate + '%' || '0%'));
+                }
+            }
+
+            function updateMetricRow(metricName, values) {
+                var rows = document.querySelectorAll('tr');
+                for (var i = 0; i < rows.length; i++) {
+                    var firstCell = rows[i].querySelector('th');
+                    if (firstCell && firstCell.textContent.trim() === metricName) {
+                        var dataCells = rows[i].querySelectorAll('td');
+                        values.forEach(function(value, index) {
+                            if (dataCells[index]) {
+                                dataCells[index].textContent = value;
+                            }
+                        });
+                        break;
+                    }
+                }
             }
 
             // ページ読み込み時にAPIキー状態を確認

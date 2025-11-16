@@ -2,89 +2,130 @@
  * Threads API関連の処理
  */
 
-/**
- * Threads APIクライアントクラス
- */
-class ThreadsApiClient {
-  private accessToken: string;
-  private baseUrl: string = 'https://graph.threads.net';
+// ヘルパー関数：ユーザー情報を取得
+function fetchUserInfo(apiKey: string): { success: boolean; data?: any; message?: string } {
+  try {
+    const url = 'https://graph.threads.net/v1.0/me';
+    const params = {
+      fields: 'id,username,name,threads_profile_picture_url,threads_biography',
+      access_token: apiKey
+    };
 
-  constructor(accessToken: string) {
-    this.accessToken = accessToken;
-  }
-
-  /**
-   * ユーザーの投稿一覧を取得
-   */
-  getUserPosts(userId: string, limit: number = 25): any {
-    try {
-      const url = `${this.baseUrl}/${userId}/threads?fields=id,media_type,media_url,permalink,text,timestamp,username&limit=${limit}&access_token=${this.accessToken}`;
-
-      const response = UrlFetchApp.fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.getResponseCode() !== 200) {
-        throw new Error(`API呼び出しエラー: ${response.getResponseCode()}`);
-      }
-
-      return JSON.parse(response.getContentText());
-    } catch (error) {
-      console.error('Threads API呼び出しエラー:', error);
-      throw error;
+    const response = UrlFetchApp.fetch(`${url}?${buildQueryString(params)}`);
+    
+    if (response.getResponseCode() !== 200) {
+      return { success: false, message: `HTTP ${response.getResponseCode()}: ${response.getContentText()}` };
     }
+
+    const data = JSON.parse(response.getContentText());
+    return { success: true, data: data };
+  } catch (error) {
+    console.error('ユーザー情報取得エラー:', error);
+    return { success: false, message: error.toString() };
   }
+}
 
-  /**
-   * 投稿の詳細情報を取得
-   */
-  getPostDetails(postId: string): any {
-    try {
-      const url = `${this.baseUrl}/${postId}?fields=id,media_type,media_url,permalink,text,timestamp,username,like_count,reply_count&access_token=${this.accessToken}`;
+// ヘルパー関数：投稿一覧を取得
+function fetchUserPosts(apiKey: string, limit: number = 25): { success: boolean; data?: any; message?: string } {
+  try {
+    const url = 'https://graph.threads.net/v1.0/me/threads';
+    const params = {
+      fields: 'id,media_product_type,media_type,media_url,permalink,username,text,timestamp,shortcode,thumbnail_url,children,is_quote_post',
+      limit: limit.toString(),
+      access_token: apiKey
+    };
 
-      const response = UrlFetchApp.fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.getResponseCode() !== 200) {
-        throw new Error(`API呼び出しエラー: ${response.getResponseCode()}`);
-      }
-
-      return JSON.parse(response.getContentText());
-    } catch (error) {
-      console.error('投稿詳細取得エラー:', error);
-      throw error;
+    const response = UrlFetchApp.fetch(`${url}?${buildQueryString(params)}`);
+    
+    if (response.getResponseCode() !== 200) {
+      return { success: false, message: `HTTP ${response.getResponseCode()}: ${response.getContentText()}` };
     }
+
+    const result = JSON.parse(response.getContentText());
+    return { success: true, data: result.data || [] };
+  } catch (error) {
+    console.error('投稿一覧取得エラー:', error);
+    return { success: false, message: error.toString() };
   }
+}
 
-  /**
-   * ユーザー情報を取得
-   */
-  getUserInfo(userId: string): any {
-    try {
-      const url = `${this.baseUrl}/${userId}?fields=id,username,name,threads_profile_picture_url,threads_biography&access_token=${this.accessToken}`;
+// ヘルパー関数：投稿のインサイトを取得
+function fetchPostInsights(apiKey: string, postId: string): { success: boolean; data?: any; message?: string } {
+  try {
+    const url = `https://graph.threads.net/v1.0/${postId}/insights`;
+    const params = {
+      metric: 'views,likes,replies,reposts,quotes',
+      access_token: apiKey
+    };
 
-      const response = UrlFetchApp.fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.getResponseCode() !== 200) {
-        throw new Error(`API呼び出しエラー: ${response.getResponseCode()}`);
-      }
-
-      return JSON.parse(response.getContentText());
-    } catch (error) {
-      console.error('ユーザー情報取得エラー:', error);
-      throw error;
+    const response = UrlFetchApp.fetch(`${url}?${buildQueryString(params)}`);
+    
+    if (response.getResponseCode() !== 200) {
+      return { success: false, message: `HTTP ${response.getResponseCode()}: ${response.getContentText()}` };
     }
+
+    const result = JSON.parse(response.getContentText());
+    return { success: true, data: result.data || [] };
+  } catch (error) {
+    console.error('投稿インサイト取得エラー:', error);
+    return { success: false, message: error.toString() };
   }
+}
+
+// ヘルパー関数：クエリ文字列を構築
+function buildQueryString(params: { [key: string]: string }): string {
+  return Object.keys(params)
+    .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+    .join('&');
+}
+
+// データ変換関数：インサイトをメトリクスに変換
+function convertInsightsToMetrics(insights: any[]): any {
+  const metrics = {
+    views: 0,
+    likes: 0,
+    replies: 0,
+    reposts: 0,
+    quotes: 0,
+    totalEngagement: 0,
+    engagementRate: '0.00'
+  };
+
+  if (!insights || !Array.isArray(insights)) {
+    return metrics;
+  }
+
+  // インサイトデータから値を抽出
+  insights.forEach(insight => {
+    if (insight.values && insight.values.length > 0) {
+      const value = insight.values[0].value || 0;
+      switch (insight.name) {
+        case 'views':
+          metrics.views = value;
+          break;
+        case 'likes':
+          metrics.likes = value;
+          break;
+        case 'replies':
+          metrics.replies = value;
+          break;
+        case 'reposts':
+          metrics.reposts = value;
+          break;
+        case 'quotes':
+          metrics.quotes = value;
+          break;
+      }
+    }
+  });
+
+  // エンゲージメント総数を計算
+  metrics.totalEngagement = metrics.likes + metrics.replies + metrics.reposts + metrics.quotes;
+  
+  // エンゲージメント率を計算
+  if (metrics.views > 0) {
+    metrics.engagementRate = ((metrics.totalEngagement / metrics.views) * 100).toFixed(2);
+  }
+
+  return metrics;
 }

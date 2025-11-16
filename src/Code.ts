@@ -133,6 +133,106 @@ function deleteApiKey(): { success: boolean; message: string } {
   }
 }
 
+// Threads API テスト機能
+function testThreadsApiConnection(): { success: boolean; message?: string; data?: any } {
+  try {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      return { success: false, message: 'APIキーが設定されていません' };
+    }
+
+    // ユーザー情報を取得
+    const userInfo = fetchUserInfo(apiKey);
+    if (!userInfo.success) {
+      return { success: false, message: 'ユーザー情報の取得に失敗: ' + userInfo.message };
+    }
+
+    // 投稿一覧を取得（最新5件）
+    const posts = fetchUserPosts(apiKey, 5);
+    if (!posts.success) {
+      return { success: false, message: '投稿一覧の取得に失敗: ' + posts.message };
+    }
+
+    return {
+      success: true,
+      data: {
+        user: userInfo.data,
+        posts: posts.data,
+        timestamp: new Date().toISOString()
+      }
+    };
+  } catch (error) {
+    console.error('API接続テストエラー:', error);
+    return { success: false, message: 'API接続テストでエラーが発生しました: ' + error.toString() };
+  }
+}
+
+function fetchAndUpdateTableData(): { success: boolean; message?: string; data?: any } {
+  try {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      return { success: false, message: 'APIキーが設定されていません' };
+    }
+
+    // 投稿一覧を取得（最新3件）
+    const postsResult = fetchUserPosts(apiKey, 3);
+    if (!postsResult.success) {
+      return { success: false, message: '投稿データの取得に失敗: ' + postsResult.message };
+    }
+
+    const posts = postsResult.data;
+    const processedPosts = [];
+
+    // 各投稿のインサイトを取得
+    for (const post of posts) {
+      try {
+        const insightsResult = fetchPostInsights(apiKey, post.id);
+        const insights = insightsResult.success ? insightsResult.data : {};
+        
+        // データ変換
+        const processedPost = {
+          id: post.id,
+          text: post.text,
+          timestamp: post.timestamp,
+          mediaType: post.media_type,
+          insights: convertInsightsToMetrics(insights)
+        };
+        
+        processedPosts.push(processedPost);
+      } catch (error) {
+        console.error(`投稿 ${post.id} のインサイト取得エラー:`, error);
+        // エラーが発生した投稿もデフォルト値で追加
+        processedPosts.push({
+          id: post.id,
+          text: post.text,
+          timestamp: post.timestamp,
+          mediaType: post.media_type,
+          insights: {
+            views: 0,
+            likes: 0,
+            replies: 0,
+            reposts: 0,
+            quotes: 0,
+            totalEngagement: 0,
+            engagementRate: '0.00'
+          }
+        });
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        posts: processedPosts,
+        timestamp: new Date().toISOString()
+      }
+    };
+  } catch (error) {
+    console.error('テーブルデータ更新エラー:', error);
+    return { success: false, message: 'テーブルデータの更新でエラーが発生しました: ' + error.toString() };
+  }
+}
+
 /**
  * 投稿データを取得
  */
