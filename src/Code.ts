@@ -1,0 +1,220 @@
+/**
+ * Threads投稿分析ツール - Webアプリケーション版
+ * Google Apps ScriptでWebアプリとして動作するThreads投稿分析システム
+ */
+
+/**
+ * WebアプリのGETリクエストを処理
+ * HTMLページを返す
+ */
+function doGet(e: GoogleAppsScript.Events.DoGet): GoogleAppsScript.HTML.HtmlOutput {
+  try {
+    // eがundefinedの場合（テスト実行時）のハンドリング
+    const page = (e && e.parameter && e.parameter.page) || 'dashboard';
+
+    switch (page) {
+      case 'dashboard':
+        return HtmlService.createTemplateFromFile('dashboard')
+          .evaluate()
+          .setTitle('Threads投稿分析ツール')
+          .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+
+      default:
+        return HtmlService.createTemplateFromFile('dashboard')
+          .evaluate()
+          .setTitle('Threads投稿分析ツール')
+          .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    }
+  } catch (error) {
+    console.error('doGet エラー:', error);
+    return HtmlService.createHtmlOutput(`
+      <h1>エラーが発生しました</h1>
+      <p>${error.toString()}</p>
+    `);
+  }
+}
+
+/**
+ * WebアプリのPOSTリクエストを処理
+ * APIエンドポイントとして機能
+ */
+function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Content.TextOutput {
+  try {
+    // eがundefinedの場合のハンドリング
+    if (!e || !e.parameter) {
+      throw new Error('Invalid request parameters');
+    }
+
+    const action = e.parameter.action;
+    const data = JSON.parse((e.postData && e.postData.contents) || '{}');
+
+    let result;
+
+    switch (action) {
+      case 'getPostData':
+        result = getPostData();
+        break;
+
+      case 'updateSettings':
+        result = updateSettings(data);
+        break;
+
+      case 'runAnalysis':
+        result = runAnalysis();
+        break;
+
+      case 'getAnalysisData':
+        result = getAnalysisData();
+        break;
+
+      default:
+        throw new Error(`未知のアクション: ${action}`);
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: true, data: result }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    console.error('doPost エラー:', error);
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        success: false,
+        error: error.toString()
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * HTMLファイルの内容を取得（include用）
+ * HTMLテンプレート内で <?!= include('filename'); ?> として使用
+ */
+function include(filename: string): string {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// API キー管理機能
+function saveApiKey(apiKey: string): { success: boolean; message: string } {
+  try {
+    if (!apiKey || apiKey.trim() === '') {
+      return { success: false, message: 'APIキーが空です' };
+    }
+
+    PropertiesService.getScriptProperties().setProperty('THREADS_API_KEY', apiKey.trim());
+    return { success: true, message: 'APIキーを保存しました' };
+  } catch (error) {
+    console.error('APIキー保存エラー:', error);
+    return { success: false, message: 'APIキーの保存に失敗しました' };
+  }
+}
+
+function getApiKey(): string {
+  try {
+    return PropertiesService.getScriptProperties().getProperty('THREADS_API_KEY') || '';
+  } catch (error) {
+    console.error('APIキー取得エラー:', error);
+    return '';
+  }
+}
+
+function hasApiKey(): boolean {
+  const apiKey = getApiKey();
+  return apiKey !== null && apiKey !== '';
+}
+
+function deleteApiKey(): { success: boolean; message: string } {
+  try {
+    PropertiesService.getScriptProperties().deleteProperty('THREADS_API_KEY');
+    return { success: true, message: 'APIキーを削除しました' };
+  } catch (error) {
+    console.error('APIキー削除エラー:', error);
+    return { success: false, message: 'APIキーの削除に失敗しました' };
+  }
+}
+
+/**
+ * 投稿データを取得
+ */
+function getPostData(): any {
+  try {
+    const dataManager = new DataManager();
+    return dataManager.getStoredPostData();
+  } catch (error) {
+    console.error('投稿データ取得エラー:', error);
+    throw error;
+  }
+}
+
+/**
+ * 設定を更新
+ */
+function updateSettings(settings: any): boolean {
+  try {
+    const dataManager = new DataManager();
+    dataManager.saveSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('設定更新エラー:', error);
+    throw error;
+  }
+}
+
+/**
+ * 分析を実行
+ */
+function runAnalysis(): any {
+  try {
+    console.log('Threads投稿分析を開始します');
+
+    // 設定の読み込み
+    const dataManager = new DataManager();
+    const config = dataManager.getSettings();
+
+    if (!config.accessToken || !config.userId) {
+      throw new Error('アクセストークンまたはユーザーIDが設定されていません');
+    }
+
+    // Threads APIからデータを取得
+    const threadsApi = new ThreadsApiClient(config.accessToken);
+    const threadsData = threadsApi.getUserPosts(config.userId, config.postLimit || 25);
+
+    // データを処理・分析
+    const analysisResult = DataProcessor.analyzePostData(threadsData.data || []);
+
+    // 結果を保存
+    dataManager.saveAnalysisResult(analysisResult);
+    dataManager.savePostData(threadsData.data || []);
+
+    console.log('分析が完了しました');
+    return analysisResult;
+  } catch (error) {
+    console.error('分析実行エラー:', error);
+    throw error;
+  }
+}
+
+/**
+ * 分析データを取得
+ */
+function getAnalysisData(): any {
+  try {
+    const dataManager = new DataManager();
+    return dataManager.getAnalysisResult();
+  } catch (error) {
+    console.error('分析データ取得エラー:', error);
+    throw error;
+  }
+}
+
+/**
+ * 手動実行用のメイン関数（テスト用）
+ */
+function main(): void {
+  try {
+    runAnalysis();
+  } catch (error) {
+    console.error('メイン処理エラー:', error);
+    throw error;
+  }
+}

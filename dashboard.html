@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threads投稿分析ツール</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        /* シートのタブ切り替え */
+        .sheet-tabs {
+            display: flex;
+            background-color: #f9f9f9;
+            border-bottom: 2px solid #1a73e8;
+            padding-left: 15px;
+        }
+        .tab {
+            padding: 10px 18px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            user-select: none;
+            color: #5f6368;
+            font-weight: 500;
+        }
+        .tab.active {
+            background-color: #fff;
+            color: #1a73e8;
+            border-top: 2px solid #1a73e8;
+            border-left: 1px solid #ccc;
+            border-right: 1px solid #ccc;
+            border-radius: 6px 6px 0 0;
+            position: relative;
+            bottom: -2px;
+            z-index: 2;
+        }
+        .tab:not(.active):hover {
+            background-color: #eee;
+        }
+
+        /* シートのコンテンツ */
+        .sheet-content {
+            display: none;
+            padding: 15px;
+        }
+        .sheet-content.active {
+            display: block;
+        }
+
+        /* スプレッドシート テーブルスタイル */
+        .spreadsheet {
+            width: 100%;
+            border-collapse: collapse;
+            overflow-x: auto;
+            display: block;
+        }
+        .spreadsheet th, .spreadsheet td {
+            border: 1px solid #d9d9d9;
+            padding: 8px 10px;
+            min-width: 150px;
+            font-size: 13px;
+            text-align: right;
+        }
+
+        /* ヘッダー行 */
+        .spreadsheet thead th {
+            text-align: center;
+            background-color: #f4f4f4;
+            color: #333;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        /* ヘッダー列 */
+        .spreadsheet tbody th {
+            text-align: left;
+            background-color: #f4f4f4;
+            color: #333;
+            font-weight: bold;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            min-width: 180px;
+        }
+
+        /* 投稿文の行 */
+        .spreadsheet .post-text-row th,
+        .spreadsheet .post-text-row td {
+            min-height: 150px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            vertical-align: top;
+            text-align: left;
+        }
+
+        /* 時間グループのヘッダー */
+        .time-header-row th {
+            text-align: left;
+            background-color: #e8f0fe;
+            color: #1a73e8;
+            font-weight: bold;
+            font-size: 14px;
+            position: sticky;
+            left: 0;
+            z-index: 6;
+        }
+
+        /* 空白行 */
+        .spacer-row td {
+            height: 10px;
+            border: none;
+            background-color: #fff;
+            padding: 5px;
+        }
+
+        /* プレミアム機能の行を色分け */
+        .premium-row th, .premium-row td {
+            background-color: #fff8e1;
+        }
+        .time-header-row.premium-row th {
+             background-color: #fff1c6;
+             color: #b76a00;
+        }
+
+        /* プレミアム機能：自動ハイライト */
+        .highlight-blue { background-color: #e8f0fe !important; }
+        .highlight-yellow { background-color: #fff7e0 !important; }
+        .highlight-red { background-color: #fce8e6 !important; }
+
+        /* レポートや設定シートのスタイル */
+        .report-grid, .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .report-card, .settings-card {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .report-card h3, .settings-card h3 {
+            margin-top: 0;
+            border-bottom: 2px solid #1a73e8;
+            padding-bottom: 8px;
+            color: #1a73e8;
+        }
+        .report-card li {
+            font-size: 14px;
+            padding: 5px 0;
+        }
+        .settings-card p {
+            font-size: 14px;
+        }
+        .settings-card input[type="text"], .settings-card input[type="number"] {
+            width: 95%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .settings-card .api-key-note {
+            font-size: 12px;
+            color: #5f6368;
+        }
+        .dashboard-kpi {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1a73e8;
+        }
+
+        /* ボタンスタイル */
+        .btn {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        .btn:hover {
+            background-color: #1557b0;
+        }
+        .btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* ローディング表示 */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1a73e8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* エラー表示 */
+        .error {
+            background-color: #fce8e6;
+            color: #d93025;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        /* 成功表示 */
+        .success {
+            background-color: #e6f4ea;
+            color: #137333;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- シートタブ -->
+        <div class="sheet-tabs">
+            <div class="tab active" onclick="showSheet('dashboard')">🏠 ダッシュボード</div>
+            <div class="tab" onclick="showSheet('data')">📊 データ (メイン)</div>
+            <div class="tab" onclick="showSheet('report')">📈 月次レポート (プレミアム)</div>
+            <div class="tab" onclick="showSheet('settings')">⚙️ 設定</div>
+        </div>
+
+        <!-- ダッシュボード -->
+        <div id="dashboard" class="sheet-content active">
+            <div class="settings-card">
+                <h3>🏠 ダッシュボード</h3>
+                <p>現在の総フォロワー数</p>
+                <div class="dashboard-kpi" id="followerCount">読み込み中...</div>
+                <hr>
+                <p>このツールはThreadsの投稿データを自動で記録・分析します。</p>
+                <button class="btn" onclick="runAnalysis()">分析を実行</button>
+                <button class="btn" onclick="loadData()">データを更新</button>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>処理中...</p>
+                </div>
+
+                <div class="error" id="error"></div>
+                <div class="success" id="success"></div>
+            </div>
+        </div>
+
+        <!-- データ（メイン）シート -->
+        <div id="data" class="sheet-content">
+            <p style="font-size:12px; color:#555;">
+                ※ 投稿12時間後に「無料版データ」が自動記録されます。<br>
+                ※ プレミアム版では、「時系列データ」が自動更新され、平均値を超えたセルが自動で色付けされます。
+            </p>
+            <div style="width: 100%; overflow-x: auto;">
+                <table class="spreadsheet" id="dataTable">
+                    <thead>
+                        <tr id="tableHeader">
+                            <th>A<br>項目</th>
+                            <!-- 投稿データが動的に追加される -->
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- データが動的に追加される -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 月次レポート（プレミアム） -->
+        <div id="report" class="sheet-content">
+            <div class="report-grid" id="reportGrid">
+                <!-- レポートデータが動的に追加される -->
+            </div>
+        </div>
+
+        <!-- 設定シート -->
+        <div id="settings" class="sheet-content">
+            <div class="settings-grid">
+                <div class="settings-card">
+                    <h3>⚙️ 基本設定</h3>
+                    <p>Threads API アクセストークン</p>
+                    <input type="text" id="accessToken" placeholder="アクセストークンを入力してください">
+                    <p class="api-key-note">※マニュアルに従いご自身で取得したAPIキーを入力してください。</p>
+
+                    <p>ユーザーID</p>
+                    <input type="text" id="userId" placeholder="分析対象のユーザーIDを入力してください">
+
+                    <p>取得投稿数</p>
+                    <input type="number" id="postLimit" value="25" min="1" max="100">
+
+                    <button class="btn" onclick="saveSettings()">設定を保存</button>
+                </div>
+                <div class="report-card">
+                    <h3>🎨 自動ハイライト設定 (プレミアム)</h3>
+                    <p>当月の平均値と比較して、指定倍率を超えたら色を変更します。</p>
+                    <ul>
+                        <li><input type="number" id="highlightBlue" value="1.5" step="0.1" style="width:60px;"> 倍を超えたら → <span style="background:#e8f0fe; padding:3px 8px;">青色</span></li>
+                        <li><input type="number" id="highlightYellow" value="2.0" step="0.1" style="width:60px;"> 倍を超えたら → <span style="background:#fff7e0; padding:3px 8px;">黄色</span></li>
+                        <li><input type="number" id="highlightRed" value="3.0" step="0.1" style="width:60px;"> 倍を超えたら → <span style="background:#fce8e6; padding:3px 8px;">赤色</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // グローバル変数
+        let currentData = null;
+        let currentSettings = null;
+
+        // ページ読み込み時の初期化
+        window.onload = function() {
+            loadSettings();
+            loadData();
+        };
+
+        // タブ切り替え
+        function showSheet(sheetId) {
+            // すべてのコンテンツを非表示に
+            var contents = document.getElementsByClassName('sheet-content');
+            for (var i = 0; i < contents.length; i++) {
+                contents[i].classList.remove('active');
+            }
+            // すべてのタブを非アクティブに
+            var tabs = document.getElementsByClassName('tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+            // 選択されたものを表示
+            document.getElementById(sheetId).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        // ローディング表示
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            hideMessages();
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // メッセージ表示
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            hideLoading();
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            hideLoading();
+        }
+
+        function hideMessages() {
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('success').style.display = 'none';
+        }
+
+        // API呼び出し
+        function callAPI(action, data = {}) {
+            return new Promise((resolve, reject) => {
+                // GASの関数を直接呼び出し
+                switch(action) {
+                    case 'getPostData':
+                        google.script.run
+                            .withSuccessHandler(result => resolve({success: true, data: result}))
+                            .withFailureHandler(error => reject(error))
+                            .getPostData();
+                        break;
+                    case 'updateSettings':
+                        google.script.run
+                            .withSuccessHandler(result => resolve({success: true, data: result}))
+                            .withFailureHandler(error => reject(error))
+                            .updateSettings(data);
+                        break;
+                    case 'runAnalysis':
+                        google.script.run
+                            .withSuccessHandler(result => resolve({success: true, data: result}))
+                            .withFailureHandler(error => reject(error))
+                            .runAnalysis();
+                        break;
+                    case 'getAnalysisData':
+                        google.script.run
+                            .withSuccessHandler(result => resolve({success: true, data: result}))
+                            .withFailureHandler(error => reject(error))
+                            .getAnalysisData();
+                        break;
+                    case 'getSettings':
+                        google.script.run
+                            .withSuccessHandler(result => resolve({success: true, data: result}))
+                            .withFailureHandler(error => reject(error))
+                            .getSettings();
+                        break;
+                    default:
+                        reject(new Error('Unknown action: ' + action));
+                }
+            });
+        }
+
+        // 設定を読み込み
+        async function loadSettings() {
+            try {
+                const response = await callAPI('getSettings');
+                if (response.success) {
+                    currentSettings = response.data;
+                    updateSettingsUI();
+                }
+            } catch (error) {
+                console.error('設定読み込みエラー:', error);
+            }
+        }
+
+        // 設定UIを更新
+        function updateSettingsUI() {
+            if (currentSettings) {
+                document.getElementById('accessToken').value = currentSettings.accessToken || '';
+                document.getElementById('userId').value = currentSettings.userId || '';
+                document.getElementById('postLimit').value = currentSettings.postLimit || 25;
+
+                if (currentSettings.highlightSettings) {
+                    document.getElementById('highlightBlue').value = currentSettings.highlightSettings.blue || 1.5;
+                    document.getElementById('highlightYellow').value = currentSettings.highlightSettings.yellow || 2.0;
+                    document.getElementById('highlightRed').value = currentSettings.highlightSettings.red || 3.0;
+                }
+            }
+        }
+
+        // 設定を保存
+        async function saveSettings() {
+            try {
+                showLoading();
+
+                const settings = {
+                    accessToken: document.getElementById('accessToken').value,
+                    userId: document.getElementById('userId').value,
+                    postLimit: parseInt(document.getElementById('postLimit').value),
+                    highlightSettings: {
+                        blue: parseFloat(document.getElementById('highlightBlue').value),
+                        yellow: parseFloat(document.getElementById('highlightYellow').value),
+                        red: parseFloat(document.getElementById('highlightRed').value)
+                    }
+                };
+
+                const response = await callAPI('updateSettings', settings);
+                if (response.success) {
+                    currentSettings = settings;
+                    showSuccess('設定を保存しました');
+                } else {
+                    showError('設定の保存に失敗しました: ' + response.error);
+                }
+            } catch (error) {
+                showError('設定保存エラー: ' + error.toString());
+            }
+        }
+
+        // データを読み込み
+        async function loadData() {
+            try {
+                const response = await callAPI('getPostData');
+                if (response.success) {
+                    currentData = response.data;
+                    updateDataTable();
+                    updateDashboard();
+                }
+            } catch (error) {
+                console.error('データ読み込みエラー:', error);
+            }
+        }
+
+        // 分析を実行
+        async function runAnalysis() {
+            try {
+                showLoading();
+
+                const response = await callAPI('runAnalysis');
+                if (response.success) {
+                    showSuccess('分析が完了しました');
+                    await loadData(); // データを再読み込み
+                } else {
+                    showError('分析に失敗しました: ' + response.error);
+                }
+            } catch (error) {
+                showError('分析エラー: ' + error.toString());
+            }
+        }
+
+        // データテーブルを更新
+        function updateDataTable() {
+            if (!currentData || !currentData.posts || currentData.posts.length === 0) {
+                document.getElementById('tableBody').innerHTML = '<tr><td colspan="100%">データがありません</td></tr>';
+                return;
+            }
+
+            // ヘッダーを更新
+            const header = document.getElementById('tableHeader');
+            header.innerHTML = '<th>A<br>項目</th>';
+
+            currentData.posts.forEach((post, index) => {
+                const date = new Date(post.timestamp);
+                const dateStr = date.toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' });
+                const timeStr = date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                header.innerHTML += `<th>${String.fromCharCode(66 + index)}<br>${dateStr}<br>${timeStr}</th>`;
+            });
+
+            // ボディを更新
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            // 投稿文行
+            let row = '<tr class="post-text-row"><th>投稿文</th>';
+            currentData.posts.forEach(post => {
+                row += `<td>${post.text || ''}</td>`;
+            });
+            row += '</tr>';
+            tbody.innerHTML += row;
+
+            // 文字数行
+            row = '<tr><th>文字数</th>';
+            currentData.posts.forEach(post => {
+                row += `<td>${(post.text || '').length}</td>`;
+            });
+            row += '</tr>';
+            tbody.innerHTML += row;
+
+            // タイプ行
+            row = '<tr><th>タイプ</th>';
+            currentData.posts.forEach(post => {
+                const typeMap = {
+                    'TEXT': 'テキスト',
+                    'IMAGE': '画像',
+                    'VIDEO': '動画',
+                    'CAROUSEL_ALBUM': 'カルーセル'
+                };
+                row += `<td>${typeMap[post.media_type] || post.media_type || 'テキスト'}</td>`;
+            });
+            row += '</tr>';
+            tbody.innerHTML += row;
+
+            // 12時間後データ
+            tbody.innerHTML += '<tr class="time-header-row"><th colspan="' + (currentData.posts.length + 1) + '">【12時間後】(無料版)</th></tr>';
+
+            // いいね数
+            row = '<tr><th>いいね(12h)</th>';
+            currentData.posts.forEach(post => {
+                row += `<td>${post.like_count || 0}</td>`;
+            });
+            row += '</tr>';
+            tbody.innerHTML += row;
+
+            // 返信数
+            row = '<tr><th>リプライ(12h)</th>';
+            currentData.posts.forEach(post => {
+                row += `<td>${post.reply_count || 0}</td>`;
+            });
+            row += '</tr>';
+            tbody.innerHTML += row;
+        }
+
+        // ダッシュボードを更新
+        function updateDashboard() {
+            // フォロワー数の表示（仮の値）
+            document.getElementById('followerCount').textContent = '10,234 人';
+        }
+    </script>
+
+</body>
+</html>

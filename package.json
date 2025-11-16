@@ -1,0 +1,31 @@
+{
+  "name": "threads-post-analysis",
+  "version": "1.0.0",
+  "description": "Threads投稿分析ツール",
+  "main": "index.js",
+  "scripts": {
+    "build": "node scripts/manual-build.js",
+    "dev": "npx tsc --watch",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.{ts,html}",
+    "push": "npm run build && clasp push",
+    "pull": "clasp pull",
+    "open": "clasp open",
+    "deploy": "clasp deploy",
+    "create": "clasp create --title 'Threads投稿分析ツール' --type standalone"
+  },
+  "keywords": ["google-apps-script", "threads", "analysis"],
+  "author": "Keisuke Shimizu",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/google-apps-script": "^1.0.83",
+    "typescript": "^5.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0"
+  }
+}
