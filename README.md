@@ -137,6 +137,39 @@ npm run deploy
 - 平文での保存は禁止
 - ユーザーが設定シートから入力可能
 
+## 🔒 セキュリティ
+
+### APIキーの安全な保存
+
+このアプリケーションでは、Threads APIキーを **Google Apps Script の PropertiesService** に保存します。
+
+#### 🛡️ セキュリティ特性
+
+- **サーバーサイド保存**: APIキーはGoogleのサーバー上で暗号化保存
+- **アクセス制御**: スクリプト所有者のみがアクセス可能
+- **ブラウザ非露出**: HTMLソースコードやJavaScriptに露出しない
+- **Google暗号化**: Google Cloud Platform のセキュリティ基準で保護
+
+#### 🔐 保存場所の詳細
+
+```javascript
+// 保存（サーバーサイドのみ）
+PropertiesService.getScriptProperties().setProperty('THREADS_API_KEY', apiKey);
+
+// 取得（サーバーサイドのみ）
+const apiKey = PropertiesService.getScriptProperties().getProperty('THREADS_API_KEY');
+```
+
+#### ⚠️ セキュリティ注意事項
+
+1. **プロジェクト共有禁止**: GASプロジェクトを他者と共有しないでください
+2. **定期的なキー更新**: 3-6ヶ月ごとのAPIキーローテーションを推奨
+3. **漏洩時の対応**: キー漏洩を発見した場合は即座にThreads Developer Consoleで無効化
+
+#### 📚 詳細情報
+
+セキュリティの詳細仕様については [docs/security.md](./docs/security.md) をご覧ください。
+
 ## 📄 ライセンス
 
 MIT License
