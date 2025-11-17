@@ -6,9 +6,9 @@
  * レポート生成クラス
  */
 class ReportGenerator {
-  private sheetManager: SheetManager;
+  private sheetManager: any;
 
-  constructor(sheetManager: SheetManager) {
+  constructor(sheetManager?: any) {
     this.sheetManager = sheetManager;
   }
 
@@ -56,11 +56,19 @@ class ReportGenerator {
   /**
    * レポート内容を生成
    */
-  private generateReportContent(sheet: GoogleAppsScript.Spreadsheet.Sheet, analysisResult: any): void {
+  private generateReportContent(
+    sheet: GoogleAppsScript.Spreadsheet.Sheet,
+    analysisResult: any
+  ): void {
     const currentDate = new Date();
     const reportData = [
       ['Threads投稿分析レポート', '', '', ''],
-      [`生成日時: ${Utilities.formatDate(currentDate, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss')}`, '', '', ''],
+      [
+        `生成日時: ${Utilities.formatDate(currentDate, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss')}`,
+        '',
+        '',
+        '',
+      ],
       ['', '', '', ''],
       ['■ 基本統計', '', '', ''],
       ['総投稿数', analysisResult.totalPosts, '', ''],
@@ -84,8 +92,18 @@ class ReportGenerator {
       ['URL総数', analysisResult.contentAnalysis.urlCount, '', ''],
       ['', '', '', ''],
       ['■ 投稿時間分析', '', '', ''],
-      ['最も投稿の多い時間帯', this.getMostActiveHour(analysisResult.timeAnalysis.hourlyDistribution), '', ''],
-      ['最も投稿の多い曜日', this.getMostActiveDay(analysisResult.timeAnalysis.dailyDistribution), '', '']
+      [
+        '最も投稿の多い時間帯',
+        this.getMostActiveHour(analysisResult.timeAnalysis.hourlyDistribution),
+        '',
+        '',
+      ],
+      [
+        '最も投稿の多い曜日',
+        this.getMostActiveDay(analysisResult.timeAnalysis.dailyDistribution),
+        '',
+        '',
+      ],
     ];
 
     // データをシートに書き込み
@@ -120,20 +138,21 @@ class ReportGenerator {
     let maxDay = '';
 
     Object.entries(dailyDistribution).forEach(([day, count]) => {
-      if (count > maxCount) {
-        maxCount = count;
+      const numCount = Number(count);
+      if (numCount > maxCount) {
+        maxCount = numCount;
         maxDay = day;
       }
     });
 
     const dayNames: { [key: string]: string } = {
-      'Sunday': '日曜日',
-      'Monday': '月曜日',
-      'Tuesday': '火曜日',
-      'Wednesday': '水曜日',
-      'Thursday': '木曜日',
-      'Friday': '金曜日',
-      'Saturday': '土曜日'
+      Sunday: '日曜日',
+      Monday: '月曜日',
+      Tuesday: '火曜日',
+      Wednesday: '水曜日',
+      Thursday: '木曜日',
+      Friday: '金曜日',
+      Saturday: '土曜日',
     };
 
     return `${dayNames[maxDay] || maxDay} (${maxCount}投稿)`;
@@ -144,7 +163,12 @@ class ReportGenerator {
    */
   private formatReportSheet(sheet: GoogleAppsScript.Spreadsheet.Sheet): void {
     // タイトル行をフォーマット
-    sheet.getRange(1, 1, 1, 4).merge().setFontSize(16).setFontWeight('bold').setHorizontalAlignment('center');
+    sheet
+      .getRange(1, 1, 1, 4)
+      .merge()
+      .setFontSize(16)
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
     sheet.getRange(2, 1, 1, 4).merge().setFontSize(10).setHorizontalAlignment('center');
 
     // セクションヘッダーをフォーマット
@@ -177,7 +201,6 @@ class ReportGenerator {
 
       // 曜日別投稿数の棒グラフを作成
       this.createDailyChart(sheet, analysisResult.timeAnalysis.dailyDistribution);
-
     } catch (error) {
       console.error('チャート作成エラー:', error);
       // チャート作成エラーは致命的ではないので、ログのみ出力
@@ -194,7 +217,7 @@ class ReportGenerator {
       ['テキスト', postsByType.text],
       ['画像', postsByType.image],
       ['動画', postsByType.video],
-      ['カルーセル', postsByType.carousel]
+      ['カルーセル', postsByType.carousel],
     ];
 
     // データを別の場所に配置
@@ -202,7 +225,8 @@ class ReportGenerator {
     sheet.getRange(startRow, 1, chartData.length, 2).setValues(chartData);
 
     // 円グラフを作成
-    const chart = sheet.newChart()
+    const chart = sheet
+      .newChart()
       .setChartType(Charts.ChartType.PIE)
       .addRange(sheet.getRange(startRow, 1, chartData.length, 2))
       .setPosition(startRow + chartData.length + 2, 1, 0, 0)
@@ -217,11 +241,14 @@ class ReportGenerator {
   /**
    * 時間別棒グラフを作成
    */
-  private createHourlyChart(sheet: GoogleAppsScript.Spreadsheet.Sheet, hourlyDistribution: number[]): void {
+  private createHourlyChart(
+    sheet: GoogleAppsScript.Spreadsheet.Sheet,
+    hourlyDistribution: number[]
+  ): void {
     // チャート用データを準備
     const chartData = [['時間', '投稿数']];
     hourlyDistribution.forEach((count, hour) => {
-      chartData.push([`${hour}:00`, count]);
+      chartData.push([`${hour}:00`, count.toString()]);
     });
 
     // データを配置
@@ -229,7 +256,8 @@ class ReportGenerator {
     sheet.getRange(startRow, 1, chartData.length, 2).setValues(chartData);
 
     // 棒グラフを作成
-    const chart = sheet.newChart()
+    const chart = sheet
+      .newChart()
       .setChartType(Charts.ChartType.COLUMN)
       .addRange(sheet.getRange(startRow, 1, chartData.length, 2))
       .setPosition(startRow + chartData.length + 2, 1, 0, 0)
@@ -244,16 +272,19 @@ class ReportGenerator {
   /**
    * 曜日別棒グラフを作成
    */
-  private createDailyChart(sheet: GoogleAppsScript.Spreadsheet.Sheet, dailyDistribution: any): void {
+  private createDailyChart(
+    sheet: GoogleAppsScript.Spreadsheet.Sheet,
+    dailyDistribution: object
+  ): void {
     // チャート用データを準備
     const dayNames: { [key: string]: string } = {
-      'Sunday': '日',
-      'Monday': '月',
-      'Tuesday': '火',
-      'Wednesday': '水',
-      'Thursday': '木',
-      'Friday': '金',
-      'Saturday': '土'
+      Sunday: '日',
+      Monday: '月',
+      Tuesday: '火',
+      Wednesday: '水',
+      Thursday: '木',
+      Friday: '金',
+      Saturday: '土',
     };
 
     const chartData = [['曜日', '投稿数']];
@@ -266,7 +297,8 @@ class ReportGenerator {
     sheet.getRange(startRow, 1, chartData.length, 2).setValues(chartData);
 
     // 棒グラフを作成
-    const chart = sheet.newChart()
+    const chart = sheet
+      .newChart()
       .setChartType(Charts.ChartType.COLUMN)
       .addRange(sheet.getRange(startRow, 1, chartData.length, 2))
       .setPosition(startRow + chartData.length + 2, 1, 0, 0)
@@ -281,7 +313,7 @@ class ReportGenerator {
   /**
    * PDFレポートを生成（オプション機能）
    */
-  generatePdfReport(analysisResult: any): void {
+  generatePdfReport(_analysisResult: object): void {
     try {
       const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
       const reportSheet = spreadsheet.getSheetByName('分析レポート');

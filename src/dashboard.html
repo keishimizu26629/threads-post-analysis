@@ -1,763 +1,1002 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>スレッズ分析ツール UIイメージ（最終版・改）</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f0f2f5;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background-color: #fff;
-            border: 1px solid #ccc;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            border-radius: 8px;
-            overflow: hidden;
-        }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background-color: #f0f2f5;
+        color: #333;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        background-color: #fff;
+        border: 1px solid #ccc;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        border-radius: 8px;
+        overflow: hidden;
+      }
 
-        /* シートのタブ切り替え */
-        .sheet-tabs {
-            display: flex;
-            background-color: #f9f9f9;
-            border-bottom: 2px solid #1a73e8;
-            padding-left: 15px;
-        }
-        .tab {
-            padding: 10px 18px;
-            cursor: pointer;
-            border: 1px solid transparent;
-            border-bottom: none;
-            user-select: none;
-            color: #5f6368;
-            font-weight: 500;
-        }
-        .tab.active {
-            background-color: #fff;
-            color: #1a73e8;
-            border-top: 2px solid #1a73e8;
-            border-left: 1px solid #ccc;
-            border-right: 1px solid #ccc;
-            border-radius: 6px 6px 0 0;
-            position: relative;
-            bottom: -2px;
-            z-index: 2;
-        }
-        .tab:not(.active):hover {
-            background-color: #eee;
-        }
+      /* シートのタブ切り替え */
+      .sheet-tabs {
+        display: flex;
+        background-color: #f9f9f9;
+        border-bottom: 2px solid #1a73e8;
+        padding-left: 15px;
+      }
+      .tab {
+        padding: 10px 18px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        border-bottom: none;
+        user-select: none;
+        color: #5f6368;
+        font-weight: 500;
+      }
+      .tab.active {
+        background-color: #fff;
+        color: #1a73e8;
+        border-top: 2px solid #1a73e8;
+        border-left: 1px solid #ccc;
+        border-right: 1px solid #ccc;
+        border-radius: 6px 6px 0 0;
+        position: relative;
+        bottom: -2px;
+        z-index: 2;
+      }
+      .tab:not(.active):hover {
+        background-color: #eee;
+      }
 
-        /* シートのコンテンツ */
-        .sheet-content {
-            display: none;
-            padding: 15px;
-        }
-        .sheet-content.active {
-            display: block;
-        }
+      /* シートのコンテンツ */
+      .sheet-content {
+        display: none;
+        padding: 15px;
+      }
+      .sheet-content.active {
+        display: block;
+      }
 
-        /* --- スプレッドシート テーブルスタイル (行列入替) --- */
-        .spreadsheet {
-            width: 100%;
-            border-collapse: collapse;
-            overflow-x: auto;
-            display: block;
-        }
-        .spreadsheet th, .spreadsheet td {
-            border: 1px solid #d9d9d9;
-            padding: 8px 10px;
-            min-width: 150px; /* 列の最小幅 */
-            font-size: 13px;
-            text-align: right; /* 数値は右寄せ */
-        }
+      /* --- スプレッドシート テーブルスタイル (行列入替) --- */
+      .spreadsheet {
+        width: 100%;
+        border-collapse: collapse;
+        overflow-x: auto;
+        display: block;
+      }
+      .spreadsheet th,
+      .spreadsheet td {
+        border: 1px solid #d9d9d9;
+        padding: 8px 10px;
+        min-width: 150px; /* 列の最小幅 */
+        font-size: 13px;
+        text-align: right; /* 数値は右寄せ */
+      }
 
-        /* ヘッダー行 (横列) */
-        .spreadsheet thead th {
-            text-align: center;
-            background-color: #f4f4f4;
-            color: #333;
-            font-weight: bold;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
+      /* ヘッダー行 (横列) */
+      .spreadsheet thead th {
+        text-align: center;
+        background-color: #f4f4f4;
+        color: #333;
+        font-weight: bold;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
 
-        /* ヘッダー列 (縦列) */
-        .spreadsheet tbody th {
-            text-align: left;
-            background-color: #f4f4f4;
-            color: #333;
-            font-weight: bold;
-            position: sticky;
-            left: 0;
-            z-index: 5;
-            min-width: 180px; /* 項目名は長め */
-        }
+      /* ヘッダー列 (縦列) */
+      .spreadsheet tbody th {
+        text-align: left;
+        background-color: #f4f4f4;
+        color: #333;
+        font-weight: bold;
+        position: sticky;
+        left: 0;
+        z-index: 5;
+        min-width: 180px; /* 項目名は長め */
+      }
 
-        /* 投稿文の行 */
-        .spreadsheet .post-text-row th,
-        .spreadsheet .post-text-row td {
-            min-height: 150px;
-            white-space: pre-wrap;
-            word-break: break-all;
-            vertical-align: top;
-            text-align: left;
-        }
+      /* 投稿文の行 */
+      .spreadsheet .post-text-row th,
+      .spreadsheet .post-text-row td {
+        min-height: 150px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        vertical-align: top;
+        text-align: left;
+      }
 
-        /* --- NEW: 時間グループのヘッダー --- */
-        .time-header-row th {
-            text-align: left;
-            background-color: #e8f0fe; /* GSheetのフリーズ行っぽい色 */
-            color: #1a73e8;
-            font-weight: bold;
-            font-size: 14px;
-            position: sticky;
-            left: 0;
-            z-index: 6;
-        }
+      /* --- NEW: 時間グループのヘッダー --- */
+      .time-header-row th {
+        text-align: left;
+        background-color: #e8f0fe; /* GSheetのフリーズ行っぽい色 */
+        color: #1a73e8;
+        font-weight: bold;
+        font-size: 14px;
+        position: sticky;
+        left: 0;
+        z-index: 6;
+      }
 
-        /* --- NEW: 空白行 (区切り線) --- */
-        .spacer-row td {
-            height: 10px;
-            border: none;
-            background-color: #fff;
-            padding: 5px;
-        }
+      /* --- NEW: 空白行 (区切り線) --- */
+      .spacer-row td {
+        height: 10px;
+        border: none;
+        background-color: #fff;
+        padding: 5px;
+      }
 
-        /* プレミアム機能の行を色分け */
-        .premium-row th, .premium-row td { background-color: #fff8e1; }
-        .time-header-row.premium-row th {
-             background-color: #fff1c6; /* プレミアムヘッダーは少し濃い黄色 */
-             color: #b76a00;
-        }
+      /* プレミアム機能の行を色分け */
+      .premium-row th,
+      .premium-row td {
+        background-color: #fff8e1;
+      }
+      .time-header-row.premium-row th {
+        background-color: #fff1c6; /* プレミアムヘッダーは少し濃い黄色 */
+        color: #b76a00;
+      }
 
+      /* プレミアム機能：自動ハイライトの表現 */
+      .highlight-blue {
+        background-color: #e8f0fe !important;
+      } /* 1.5倍（青） */
+      .highlight-yellow {
+        background-color: #fff7e0 !important;
+      } /* 2.0倍（黄） */
+      .highlight-red {
+        background-color: #fce8e6 !important;
+      } /* 3.0倍（赤） */
 
-        /* プレミアム機能：自動ハイライトの表現 */
-        .highlight-blue { background-color: #e8f0fe !important; } /* 1.5倍（青） */
-        .highlight-yellow { background-color: #fff7e0 !important; } /* 2.0倍（黄） */
-        .highlight-red { background-color: #fce8e6 !important; } /* 3.0倍（赤） */
-
-        /* レポートや設定シートのスタイル (変更なし) */
-        .report-grid, .settings-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        .report-card, .settings-card {
-            background: #f9f9f9;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 20px;
-        }
-        .report-card h3, .settings-card h3 {
-            margin-top: 0;
-            border-bottom: 2px solid #1a73e8;
-            padding-bottom: 8px;
-            color: #1a73e8;
-        }
-        .report-card li {
-            font-size: 14px;
-            padding: 5px 0;
-        }
-        .settings-card p {
-            font-size: 14px;
-        }
-        .settings-card input[type="text"] {
-            width: 95%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-family: monospace;
-        }
-        .settings-card .api-key-note {
-            font-size: 12px;
-            color: #5f6368;
-        }
-        .dashboard-kpi {
-            font-size: 24px;
-            font-weight: bold;
-            color: #1a73e8;
-        }
-
+      /* レポートや設定シートのスタイル (変更なし) */
+      .report-grid,
+      .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+      }
+      .report-card,
+      .settings-card {
+        background: #f9f9f9;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 20px;
+      }
+      .report-card h3,
+      .settings-card h3 {
+        margin-top: 0;
+        border-bottom: 2px solid #1a73e8;
+        padding-bottom: 8px;
+        color: #1a73e8;
+      }
+      .report-card li {
+        font-size: 14px;
+        padding: 5px 0;
+      }
+      .settings-card p {
+        font-size: 14px;
+      }
+      .settings-card input[type='text'] {
+        width: 95%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-family: monospace;
+      }
+      .settings-card .api-key-note {
+        font-size: 12px;
+        color: #5f6368;
+      }
+      .dashboard-kpi {
+        font-size: 24px;
+        font-weight: bold;
+        color: #1a73e8;
+      }
     </style>
-</head>
-<body>
-
+  </head>
+  <body>
     <div class="container">
-        <!-- シートタブ (変更なし) -->
-        <div class="sheet-tabs">
-            <div class="tab active" onclick="showSheet(event, 'data')">📊 データ (メイン)</div>
-            <div class="tab" onclick="showSheet(event, 'dashboard')">🏠 ダッシュボード</div>
-            <div class="tab" onclick="showSheet(event, 'report')">📈 月次レポート (プレミアム)</div>
-            <div class="tab" onclick="showSheet(event, 'settings')">⚙️ 設定</div>
-        </div>
+      <!-- シートタブ (変更なし) -->
+      <div class="sheet-tabs">
+        <div class="tab active" onclick="showSheet(event, 'data')">📊 データ (メイン)</div>
+        <div class="tab" onclick="showSheet(event, 'dashboard')">🏠 ダッシュボード</div>
+        <div class="tab" onclick="showSheet(event, 'report')">📈 月次レポート (プレミアム)</div>
+        <div class="tab" onclick="showSheet(event, 'settings')">⚙️ 設定</div>
+      </div>
 
-        <!-- 1. ダッシュボード (変更なし) -->
-        <div id="dashboard" class="sheet-content">
-            <!-- (内容は変更なし) -->
-            <div class="settings-card">
-                <h3>🏠 ダッシュボード</h3>
-                <p>現在の総フォロワー数</p>
-                <div class="dashboard-kpi">10,234 人</div>
-                <hr>
-                <p>このツールは「データ」シートにThreadsの投稿データを自動で記録します。<br>
-                プレミアム版にアップグレードすると、「月次レポート」や「自動ハイライト」機能が有効になります。</p>
+      <!-- 1. ダッシュボード (変更なし) -->
+      <div id="dashboard" class="sheet-content">
+        <!-- (内容は変更なし) -->
+        <div class="settings-card">
+          <h3>🏠 ダッシュボード</h3>
+          <p>現在の総フォロワー数</p>
+          <div class="dashboard-kpi">10,234 人</div>
+          <hr />
+          <p>
+            このツールは「データ」シートにThreadsの投稿データを自動で記録します。<br />
+            プレミアム版にアップグレードすると、「月次レポート」や「自動ハイライト」機能が有効になります。
+          </p>
+        </div>
+      </div>
+
+      <!-- 2. データ（メイン）シート (変更あり) -->
+      <div id="data" class="sheet-content active">
+        <p style="font-size: 12px; color: #555">
+          ※ 投稿12時間後に「無料版データ」が自動記録されます。<br />
+          ※
+          プレミアム版では、「時系列データ」が自動更新され、平均値を超えたセルが自動で色付けされます。
+        </p>
+        <div style="width: 100%; overflow-x: auto">
+          <table class="spreadsheet">
+            <thead>
+              <tr>
+                <th>項目 / 投稿日時</th>
+                <!-- 投稿を古い順（左）から並べる -->
+                <th>11/10<br />12:00</th>
+                <th>11/11<br />20:00</th>
+                <th>11/12<br />18:30</th>
+                <!-- 以下、投稿が自動で横に追加される -->
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 共通データ -->
+              <tr class="post-text-row">
+                <th>投稿文</th>
+                <td>
+                  新しいPCのセットアップ完了！<br />これで動画編集も快適になりそう。[画像あり]
+                </td>
+                <td>今日は一日中コーディングでした。<br />疲れた... #GAS #開発</td>
+                <td>
+                  【速報】Threads分析ツール、ついに完成！<br />これさえあれば分析が捗るはず。<br />#Threads
+                  #分析
+                </td>
+              </tr>
+              <tr>
+                <th>文字数</th>
+                <td>50</td>
+                <td>35</td>
+                <td>75</td>
+              </tr>
+              <tr>
+                <th>タイプ</th>
+                <td>画像</td>
+                <td>テキスト</td>
+                <td>テキスト</td>
+              </tr>
+
+              <!-- NEW: 12時間後 (無料版) ヘッダー -->
+              <tr class="time-header-row">
+                <th colspan="4">【12時間後】(無料版)</th>
+              </tr>
+              <tr>
+                <th>インプ(12h)</th>
+                <td class="highlight-blue">1,600</td>
+                <!-- 1.5倍超え (青) -->
+                <td>850</td>
+                <td class="highlight-red">3,500</td>
+                <!-- 3.0倍超え (赤) -->
+              </tr>
+              <tr>
+                <th>いいね(12h)</th>
+                <td class="highlight-blue">120</td>
+                <!-- 1.5倍超え (青) -->
+                <td>45</td>
+                <td class="highlight-yellow">210</td>
+                <!-- 2.0倍超え (黄) -->
+              </tr>
+              <tr>
+                <th>再投稿/引用(12h)</th>
+                <td>8</td>
+                <td>2</td>
+                <td>15</td>
+              </tr>
+              <tr>
+                <th>リプライ(12h)</th>
+                <td>10</td>
+                <td>5</td>
+                <td>25</td>
+              </tr>
+              <tr>
+                <th>Eng総数(12h)</th>
+                <td>138</td>
+                <td>52</td>
+                <td>250</td>
+              </tr>
+              <tr>
+                <th>Eng率(12h)</th>
+                <td>8.63%</td>
+                <td>6.12%</td>
+                <td>7.14%</td>
+              </tr>
+              <tr>
+                <th>総フォロワー(12h)</th>
+                <td>10,234</td>
+                <td>10,240</td>
+                <td>10,255</td>
+              </tr>
+
+              <!-- NEW: 24時間後 (プレミアム) ヘッダー -->
+              <tr class="spacer-row">
+                <td colspan="4"></td>
+              </tr>
+              <tr class="time-header-row premium-row">
+                <th colspan="4">【24時間後】(プレミアム)</th>
+              </tr>
+              <tr class="premium-row">
+                <th>インプ(24h)</th>
+                <td>2,200</td>
+                <td>860</td>
+                <td>4,200</td>
+              </tr>
+              <tr class="premium-row">
+                <th>いいね(24h)</th>
+                <td>130</td>
+                <td>46</td>
+                <td>220</td>
+              </tr>
+              <tr class="premium-row">
+                <th>再投稿/引用(24h)</th>
+                <td>10</td>
+                <td>2</td>
+                <td>16</td>
+              </tr>
+              <tr class="premium-row">
+                <th>リプライ(24h)</th>
+                <td>12</td>
+                <td>5</td>
+                <td>26</td>
+              </tr>
+              <tr class="premium-row">
+                <th>Eng総数(24h)</th>
+                <td>152</td>
+                <td>53</td>
+                <td>262</td>
+              </tr>
+              <tr class="premium-row">
+                <th>Eng率(24h)</th>
+                <td>6.91%</td>
+                <td>6.16%</td>
+                <td>6.24%</td>
+              </tr>
+
+              <!-- NEW: 72時間後 (プレミアム) ヘッダー -->
+              <tr class="spacer-row">
+                <td colspan="4"></td>
+              </tr>
+              <tr class="time-header-row premium-row">
+                <th colspan="4">【72時間後】(プレミアム)</th>
+              </tr>
+              <tr class="premium-row">
+                <th>インプ(72h)</th>
+                <td>2,500</td>
+                <td>860</td>
+                <td>4,500</td>
+              </tr>
+              <tr class="premium-row">
+                <th>いいね(72h)</th>
+                <td>135</td>
+                <td>46</td>
+                <td>230</td>
+              </tr>
+              <tr class="premium-row">
+                <th>再投稿/引用(72h)</th>
+                <td>10</td>
+                <td>2</td>
+                <td>17</td>
+              </tr>
+              <tr class="premium-row">
+                <th>リプライ(72h)</th>
+                <td>13</td>
+                <td>5</td>
+                <td>27</td>
+              </tr>
+              <tr class="premium-row">
+                <th>Eng総数(72h)</th>
+                <td>158</td>
+                <td>53</td>
+                <td>274</td>
+              </tr>
+              <tr class="premium-row">
+                <th>Eng率(72h)</th>
+                <td>6.32%</td>
+                <td>6.16%</td>
+                <td>6.09%</td>
+              </tr>
+
+              <!-- NEW: 7日後 (プレミアム) ヘッダー -->
+              <tr class="spacer-row">
+                <td colspan="4"></td>
+              </tr>
+              <tr class="time-header-row premium-row">
+                <th colspan="4">【7日後】(プレミアム)</th>
+              </tr>
+              <tr class="premium-row">
+                <th>インプ(7d)</th>
+                <td>2,600</td>
+                <td>860</td>
+                <td>4,550</td>
+              </tr>
+              <tr class="premium-row">
+                <th>いいね(7d)</th>
+                <td>138</td>
+                <td>46</td>
+                <td>232</td>
+              </tr>
+              <tr class="premium-row">
+                <th>再投稿/引用(7d)</th>
+                <td>10</td>
+                <td>2</td>
+                <td>17</td>
+              </tr>
+              <tr class="premium-row">
+                <th>リプライ(7d)</th>
+                <td>13</td>
+                <td>5</td>
+                <td>27</td>
+              </tr>
+              <tr class="premium-row">
+                <th>Eng総数(7d)</th>
+                <td>161</td>
+                <td>53</td>
+                <td>276</td>
+              </tr>
+              <tr class="premium-row">
+                <th>Eng率(7d)</th>
+                <td>6.19%</td>
+                <td>6.16%</td>
+                <td>6.07%</td>
+              </tr>
+
+              <!-- NEW: 共通データ (最後) -->
+              <tr class="spacer-row">
+                <td colspan="4"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3. 月次レポート（プレミアム） (変更なし) -->
+      <div id="report" class="sheet-content">
+        <!-- (内容は変更なし) -->
+        <div class="report-grid">
+          <div class="report-card">
+            <h3>📈 2025年11月 サマリー</h3>
+            <ul>
+              <li>1ヶ月の総投稿数: 50 件</li>
+              <li>1ヶ月の総インプレッション数: 150,000</li>
+              <li>平均Eng率 (12h): 7.2%</li>
+            </ul>
+          </div>
+          <div class="report-card">
+            <h3>🏆 反応が良かった投稿 ベスト10 (インプ順)</h3>
+            <ol>
+              <li><a href="#">【速報】Threads分析ツール、ついに完成！ (3,500)</a></li>
+              <li><a href="#">（投稿タイトル...） (2,800)</a></li>
+              <li><a href="#">（投稿タイトル...） (2,200)</a></li>
+              <!-- ... -->
+            </ol>
+          </div>
+          <div class="report-card">
+            <h3>🔑 反応が良かったキーワード集</h3>
+            <p>（これらの単語が含まれる投稿は、平均よりEng率が高い傾向にあります）</p>
+            <ol>
+              <li>分析 (+3.5%)</li>
+              <li>速報 (+2.1%)</li>
+              <li>GAS (+1.8%)</li>
+              <!-- ... -->
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. 設定シート (変更なし) -->
+      <div id="settings" class="sheet-content">
+        <!-- (内容は変更なし) -->
+        <div class="settings-grid">
+          <div class="settings-card">
+            <h3>⚙️ 基本設定</h3>
+            <div id="api-key-section">
+              <p>Threads API アクセストークン</p>
+              <div id="api-key-status" style="margin-bottom: 10px">
+                <span id="api-key-indicator" style="color: #666">読み込み中...</span>
+              </div>
+              <div id="api-key-form" style="display: none">
+                <input
+                  type="password"
+                  id="api-key-input"
+                  placeholder="APIキーを入力してください"
+                  style="width: 300px; margin-right: 10px"
+                />
+                <button
+                  onclick="saveApiKey()"
+                  style="
+                    background: #1976d2;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                  "
+                >
+                  保存
+                </button>
+              </div>
+              <div id="api-key-actions" style="margin-top: 10px">
+                <button
+                  id="edit-api-key-btn"
+                  onclick="showApiKeyForm()"
+                  style="
+                    background: #f57c00;
+                    color: white;
+                    border: none;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-right: 10px;
+                  "
+                >
+                  編集
+                </button>
+                <button
+                  id="delete-api-key-btn"
+                  onclick="deleteApiKey()"
+                  style="
+                    background: #d32f2f;
+                    color: white;
+                    border: none;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                  "
+                >
+                  削除
+                </button>
+              </div>
+              <p class="api-key-note" style="font-size: 12px; color: #666; margin-top: 10px">
+                ※APIキーは安全に暗号化されて保存されます<br />
+                ※マニュアルに従いご自身で取得したAPIキーを入力してください
+              </p>
             </div>
-        </div>
+          </div>
 
-        <!-- 2. データ（メイン）シート (変更あり) -->
-        <div id="data" class="sheet-content active">
-            <p style="font-size:12px; color:#555;">
-                ※ 投稿12時間後に「無料版データ」が自動記録されます。<br>
-                ※ プレミアム版では、「時系列データ」が自動更新され、平均値を超えたセルが自動で色付けされます。
+          <div class="settings-card">
+            <h3>🧪 データ取得テスト</h3>
+            <div id="api-test-section">
+              <p>Threads APIから実際のデータを取得してテーブルに反映します</p>
+              <div id="test-controls" style="margin: 15px 0">
+                <button
+                  id="test-api-btn"
+                  onclick="testThreadsApi()"
+                  style="
+                    background: #1976d2;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-right: 10px;
+                  "
+                >
+                  📊 データ取得テスト
+                </button>
+                <button
+                  id="refresh-data-btn"
+                  onclick="refreshTableData()"
+                  style="
+                    background: #388e3c;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                  "
+                >
+                  🔄 テーブル更新
+                </button>
+              </div>
+              <div
+                id="test-status"
+                style="margin: 10px 0; padding: 10px; border-radius: 4px; display: none"
+              >
+                <span id="test-message">待機中...</span>
+              </div>
+              <div id="test-results" style="margin-top: 15px; display: none">
+                <h4>取得データプレビュー:</h4>
+                <pre
+                  id="test-data"
+                  style="
+                    background: #f5f5f5;
+                    padding: 10px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    max-height: 200px;
+                    overflow-y: auto;
+                  "
+                ></pre>
+              </div>
+              <div id="debug-log" style="margin-top: 15px">
+                <h4>デバッグログ:</h4>
+                <div
+                  id="log-container"
+                  style="
+                    background: #f9f9f9;
+                    border: 1px solid #ddd;
+                    padding: 10px;
+                    border-radius: 4px;
+                    max-height: 300px;
+                    overflow-y: auto;
+                    font-family: monospace;
+                    font-size: 11px;
+                  "
+                >
+                  <div class="log-entry">システム準備完了</div>
+                </div>
+                <button
+                  onclick="clearDebugLog()"
+                  style="
+                    margin-top: 5px;
+                    background: #666;
+                    color: white;
+                    border: none;
+                    padding: 4px 8px;
+                    border-radius: 2px;
+                    font-size: 11px;
+                  "
+                >
+                  ログクリア
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="report-card">
+            <h3>🎨 自動ハイライト設定 (プレミアム)</h3>
+            <p>当月の平均値と比較して、指定倍率を超えたら色を変更します。</p>
+            <ul>
+              <li>
+                <input type="number" value="1.5" style="width: 50px" /> 倍を超えたら →
+                <span style="background: #e8f0fe; padding: 3px 8px">青色</span>
+              </li>
+              <li>
+                <input type="number" value="2.0" style="width: 50px" /> 倍を超えたら →
+                <span style="background: #fff7e0; padding: 3px 8px">黄色</span>
+              </li>
+              <li>
+                <input type="number" value="3.0" style="width: 50px" /> 倍を超えたら →
+                <span style="background: #fce8e6; padding: 3px 8px">赤色</span>
+              </li>
+            </ul>
+            <p style="font-size: 12px">
+              （※このUIイメージです。実際のツールでは設定シート上のセルで管理します）
             </p>
-            <div style="width: 100%; overflow-x: auto;">
-                <table class="spreadsheet">
-                    <thead>
-                        <tr>
-                            <th>項目 / 投稿日時</th>
-                            <!-- 投稿を古い順（左）から並べる -->
-                            <th>11/10<br>12:00</th>
-                            <th>11/11<br>20:00</th>
-                            <th>11/12<br>18:30</th>
-                            <!-- 以下、投稿が自動で横に追加される -->
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- 共通データ -->
-                        <tr class="post-text-row">
-                            <th>投稿文</th>
-                            <td>新しいPCのセットアップ完了！<br>これで動画編集も快適になりそう。[画像あり]</td>
-                            <td>今日は一日中コーディングでした。<br>疲れた... #GAS #開発</td>
-                            <td>【速報】Threads分析ツール、ついに完成！<br>これさえあれば分析が捗るはず。<br>#Threads #分析</td>
-                        </tr>
-                        <tr>
-                            <th>文字数</th>
-                            <td>50</td>
-                            <td>35</td>
-                            <td>75</td>
-                        </tr>
-                        <tr>
-                            <th>タイプ</th>
-                            <td>画像</td>
-                            <td>テキスト</td>
-                            <td>テキスト</td>
-                        </tr>
-
-                        <!-- NEW: 12時間後 (無料版) ヘッダー -->
-                        <tr class="time-header-row">
-                            <th colspan="4">【12時間後】(無料版)</th>
-                        </tr>
-                        <tr>
-                            <th>インプ(12h)</th>
-                            <td class="highlight-blue">1,600</td> <!-- 1.5倍超え (青) -->
-                            <td>850</td>
-                            <td class="highlight-red">3,500</td> <!-- 3.0倍超え (赤) -->
-                        </tr>
-                        <tr>
-                            <th>いいね(12h)</th>
-                            <td class="highlight-blue">120</td> <!-- 1.5倍超え (青) -->
-                            <td>45</td>
-                            <td class="highlight-yellow">210</td> <!-- 2.0倍超え (黄) -->
-                        </tr>
-                        <tr>
-                            <th>再投稿/引用(12h)</th>
-                            <td>8</td>
-                            <td>2</td>
-                            <td>15</td>
-                        </tr>
-                        <tr>
-                            <th>リプライ(12h)</th>
-                            <td>10</td>
-                            <td>5</td>
-                            <td>25</td>
-                        </tr>
-                        <tr>
-                            <th>Eng総数(12h)</th>
-                            <td>138</td>
-                            <td>52</td>
-                            <td>250</td>
-                        </tr>
-                        <tr>
-                            <th>Eng率(12h)</th>
-                            <td>8.63%</td>
-                            <td>6.12%</td>
-                            <td>7.14%</td>
-                        </tr>
-                        <tr>
-                            <th>総フォロワー(12h)</th>
-                            <td>10,234</td>
-                            <td>10,240</td>
-                            <td>10,255</td>
-                        </tr>
-
-                        <!-- NEW: 24時間後 (プレミアム) ヘッダー -->
-                        <tr class="spacer-row"><td colspan="4"></td></tr>
-                        <tr class="time-header-row premium-row">
-                            <th colspan="4">【24時間後】(プレミアム)</th>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>インプ(24h)</th>
-                            <td>2,200</td>
-                            <td>860</td>
-                            <td>4,200</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>いいね(24h)</th>
-                            <td>130</td>
-                            <td>46</td>
-                            <td>220</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>再投稿/引用(24h)</th>
-                            <td>10</td>
-                            <td>2</td>
-                            <td>16</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>リプライ(24h)</th>
-                            <td>12</td>
-                            <td>5</td>
-                            <td>26</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>Eng総数(24h)</th>
-                            <td>152</td>
-                            <td>53</td>
-                            <td>262</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>Eng率(24h)</th>
-                            <td>6.91%</td>
-                            <td>6.16%</td>
-                            <td>6.24%</td>
-                        </tr>
-
-                        <!-- NEW: 72時間後 (プレミアム) ヘッダー -->
-                        <tr class="spacer-row"><td colspan="4"></td></tr>
-                        <tr class="time-header-row premium-row">
-                            <th colspan="4">【72時間後】(プレミアム)</th>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>インプ(72h)</th>
-                            <td>2,500</td>
-                            <td>860</td>
-                            <td>4,500</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>いいね(72h)</th>
-                            <td>135</td>
-                            <td>46</td>
-                            <td>230</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>再投稿/引用(72h)</th>
-                            <td>10</td>
-                            <td>2</td>
-                            <td>17</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>リプライ(72h)</th>
-                            <td>13</td>
-                            <td>5</td>
-                            <td>27</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>Eng総数(72h)</th>
-                            <td>158</td>
-                            <td>53</td>
-                            <td>274</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>Eng率(72h)</th>
-                            <td>6.32%</td>
-                            <td>6.16%</td>
-                            <td>6.09%</td>
-                        </tr>
-
-                        <!-- NEW: 7日後 (プレミアム) ヘッダー -->
-                        <tr class="spacer-row"><td colspan="4"></td></tr>
-                        <tr class="time-header-row premium-row">
-                            <th colspan="4">【7日後】(プレミアム)</th>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>インプ(7d)</th>
-                            <td>2,600</td>
-                            <td>860</td>
-                            <td>4,550</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>いいね(7d)</th>
-                            <td>138</td>
-                            <td>46</td>
-                            <td>232</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>再投稿/引用(7d)</th>
-                            <td>10</td>
-                            <td>2</td>
-                            <td>17</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>リプライ(7d)</th>
-                            <td>13</td>
-                            <td>5</td>
-                            <td>27</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>Eng総数(7d)</th>
-                            <td>161</td>
-                            <td>53</td>
-                            <td>276</td>
-                        </tr>
-                        <tr class="premium-row">
-                            <th>Eng率(7d)</th>
-                            <td>6.19%</td>
-                            <td>6.16%</td>
-                            <td>6.07%</td>
-                        </tr>
-
-                        <!-- NEW: 共通データ (最後) -->
-                        <tr class="spacer-row"><td colspan="4"></td></tr>
-                    </tbody>
-                </table>
-            </div>
+          </div>
         </div>
-
-        <!-- 3. 月次レポート（プレミアム） (変更なし) -->
-        <div id="report" class="sheet-content">
-            <!-- (内容は変更なし) -->
-            <div class="report-grid">
-                <div class="report-card">
-                    <h3>📈 2025年11月 サマリー</h3>
-                    <ul>
-                        <li>1ヶ月の総投稿数: 50 件</li>
-                        <li>1ヶ月の総インプレッション数: 150,000</li>
-                        <li>平均Eng率 (12h): 7.2%</li>
-                    </ul>
-                </div>
-                <div class="report-card">
-                    <h3>🏆 反応が良かった投稿 ベスト10 (インプ順)</h3>
-                    <ol>
-                        <li><a href="#">【速報】Threads分析ツール、ついに完成！ (3,500)</a></li>
-                        <li><a href="#">（投稿タイトル...） (2,800)</a></li>
-                        <li><a href="#">（投稿タイトル...） (2,200)</a></li>
-                        <!-- ... -->
-                    </ol>
-                </div>
-                <div class="report-card">
-                    <h3>🔑 反応が良かったキーワード集</h3>
-                    <p>（これらの単語が含まれる投稿は、平均よりEng率が高い傾向にあります）</p>
-                    <ol>
-                        <li>分析 (+3.5%)</li>
-                        <li>速報 (+2.1%)</li>
-                        <li>GAS (+1.8%)</li>
-                        <!-- ... -->
-                    </ol>
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. 設定シート (変更なし) -->
-        <div id="settings" class="sheet-content">
-            <!-- (内容は変更なし) -->
-            <div class="settings-grid">
-                <div class="settings-card">
-                    <h3>⚙️ 基本設定</h3>
-                    <div id="api-key-section">
-                        <p>Threads API アクセストークン</p>
-                        <div id="api-key-status" style="margin-bottom: 10px;">
-                            <span id="api-key-indicator" style="color: #666;">読み込み中...</span>
-                        </div>
-                        <div id="api-key-form" style="display: none;">
-                            <input type="password" id="api-key-input" placeholder="APIキーを入力してください" style="width: 300px; margin-right: 10px;">
-                            <button onclick="saveApiKey()" style="background: #1976d2; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">保存</button>
-                        </div>
-                        <div id="api-key-actions" style="margin-top: 10px;">
-                            <button id="edit-api-key-btn" onclick="showApiKeyForm()" style="background: #f57c00; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 10px;">編集</button>
-                            <button id="delete-api-key-btn" onclick="deleteApiKey()" style="background: #d32f2f; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">削除</button>
-                        </div>
-                        <p class="api-key-note" style="font-size: 12px; color: #666; margin-top: 10px;">
-                            ※APIキーは安全に暗号化されて保存されます<br>
-                            ※マニュアルに従いご自身で取得したAPIキーを入力してください
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="settings-card">
-                    <h3>🧪 データ取得テスト</h3>
-                    <div id="api-test-section">
-                        <p>Threads APIから実際のデータを取得してテーブルに反映します</p>
-                        <div id="test-controls" style="margin: 15px 0;">
-                            <button id="test-api-btn" onclick="testThreadsApi()" style="background: #1976d2; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
-                                📊 データ取得テスト
-                            </button>
-                            <button id="refresh-data-btn" onclick="refreshTableData()" style="background: #388e3c; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
-                                🔄 テーブル更新
-                            </button>
-                        </div>
-                        <div id="test-status" style="margin: 10px 0; padding: 10px; border-radius: 4px; display: none;">
-                            <span id="test-message">待機中...</span>
-                        </div>
-                        <div id="test-results" style="margin-top: 15px; display: none;">
-                            <h4>取得データプレビュー:</h4>
-                            <pre id="test-data" style="background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px; max-height: 200px; overflow-y: auto;"></pre>
-                        </div>
-                    </div>
-                </div>
-                <div class="report-card">
-                    <h3>🎨 自動ハイライト設定 (プレミアム)</h3>
-                    <p>当月の平均値と比較して、指定倍率を超えたら色を変更します。</p>
-                    <ul>
-                        <li><input type="number" value="1.5" style="width:50px;"> 倍を超えたら → <span style="background:#e8f0fe; padding:3px 8px;">青色</span></li>
-                        <li><input type="number" value="2.0" style="width:50px;"> 倍を超えたら → <span style="background:#fff7e0; padding:3px 8px;">黄色</span></li>
-                        <li><input type="number" value="3.0" style="width:50px;"> 倍を超えたら → <span style="background:#fce8e6; padding:3px 8px;">赤色</span></li>
-                    </ul>
-                    <p style="font-size:12px;">（※このUIイメージです。実際のツールでは設定シート上のセルで管理します）</p>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
 
-        <script>
-            // タブ切り替え用のシンプルなスクリプト
-            function showSheet(e, sheetId) {
-                // すべてのコンテンツを非表示に
-                var contents = document.getElementsByClassName('sheet-content');
-                for (var i = 0; i < contents.length; i++) {
-                    contents[i].classList.remove('active');
+    <script>
+      // タブ切り替え用のシンプルなスクリプト
+      function showSheet(e, sheetId) {
+        // すべてのコンテンツを非表示に
+        var contents = document.getElementsByClassName('sheet-content');
+        for (var i = 0; i < contents.length; i++) {
+          contents[i].classList.remove('active');
+        }
+        // すべてのタブを非アクティブに
+        var tabs = document.getElementsByClassName('tab');
+        for (var i = 0; i < tabs.length; i++) {
+          tabs[i].classList.remove('active');
+        }
+        // 選択されたものを表示
+        document.getElementById(sheetId).classList.add('active');
+        e.currentTarget.classList.add('active');
+      }
+
+      // APIキー管理機能
+      function checkApiKeyStatus() {
+        google.script.run
+          .withSuccessHandler(function (hasKey) {
+            var indicator = document.getElementById('api-key-indicator');
+            var editBtn = document.getElementById('edit-api-key-btn');
+            var deleteBtn = document.getElementById('delete-api-key-btn');
+
+            if (hasKey) {
+              indicator.textContent = '✅ APIキーが設定されています';
+              indicator.style.color = '#2e7d32';
+              editBtn.style.display = 'inline-block';
+              deleteBtn.style.display = 'inline-block';
+            } else {
+              indicator.textContent = '❌ APIキーが設定されていません';
+              indicator.style.color = '#d32f2f';
+              editBtn.style.display = 'inline-block';
+              deleteBtn.style.display = 'none';
+              showApiKeyForm(); // 未設定の場合は入力フォームを表示
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('APIキー状態確認エラー:', error);
+            document.getElementById('api-key-indicator').textContent = 'エラー: ' + error.message;
+          })
+          .hasApiKey();
+      }
+
+      function showApiKeyForm() {
+        document.getElementById('api-key-form').style.display = 'block';
+        document.getElementById('api-key-input').focus();
+      }
+
+      function hideApiKeyForm() {
+        document.getElementById('api-key-form').style.display = 'none';
+        document.getElementById('api-key-input').value = '';
+      }
+
+      function saveApiKey() {
+        var apiKey = document.getElementById('api-key-input').value.trim();
+        addDebugLog('🔑 APIキー保存開始', 'info');
+
+        if (!apiKey) {
+          alert('APIキーを入力してください');
+          addDebugLog('❌ APIキーが空です', 'error');
+          return;
+        }
+
+        addDebugLog('APIキー長: ' + apiKey.length + '文字', 'info');
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            addDebugLog(
+              'APIキー保存結果: ' + JSON.stringify(result),
+              result.success ? 'success' : 'error'
+            );
+
+            if (result.success) {
+              alert(result.message);
+              hideApiKeyForm();
+              checkApiKeyStatus();
+              addDebugLog('✅ APIキー保存成功', 'success');
+            } else {
+              alert('エラー: ' + result.message);
+              addDebugLog('❌ APIキー保存失敗: ' + result.message, 'error');
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('APIキー保存エラー:', error);
+            addDebugLog('❌ APIキー保存例外: ' + error.message, 'error');
+            alert('APIキーの保存に失敗しました: ' + error.message);
+          })
+          .saveApiKey(apiKey);
+      }
+
+      function deleteApiKey() {
+        if (!confirm('APIキーを削除してもよろしいですか？')) {
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              alert(result.message);
+              checkApiKeyStatus();
+            } else {
+              alert('エラー: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('APIキー削除エラー:', error);
+            alert('APIキーの削除に失敗しました: ' + error.message);
+          })
+          .deleteApiKey();
+      }
+
+      // デバッグログ機能
+      function addDebugLog(message, type) {
+        type = type || 'info';
+        var timestamp = new Date().toLocaleTimeString();
+        var logContainer = document.getElementById('log-container');
+        var logEntry = document.createElement('div');
+        logEntry.className = 'log-entry';
+
+        var color = '#333';
+        if (type === 'error') color = '#d32f2f';
+        if (type === 'success') color = '#2e7d32';
+        if (type === 'warning') color = '#f57c00';
+
+        logEntry.innerHTML =
+          '<span style="color: #666;">[' +
+          timestamp +
+          ']</span> <span style="color: ' +
+          color +
+          ';">' +
+          message +
+          '</span>';
+        logContainer.appendChild(logEntry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+
+      function clearDebugLog() {
+        var logContainer = document.getElementById('log-container');
+        logContainer.innerHTML = '<div class="log-entry">ログクリア完了</div>';
+      }
+
+      // APIテスト機能
+      function testThreadsApi() {
+        addDebugLog('🔄 APIテスト開始', 'info');
+        showTestStatus('loading', '🔄 APIキーを確認中...');
+
+        google.script.run
+          .withSuccessHandler(function (hasKey) {
+            addDebugLog(
+              'APIキー確認結果: ' + (hasKey ? '設定済み' : '未設定'),
+              hasKey ? 'success' : 'warning'
+            );
+
+            if (!hasKey) {
+              showTestStatus(
+                'error',
+                '❌ APIキーが設定されていません。まずAPIキーを設定してください。'
+              );
+              addDebugLog('❌ APIキーが設定されていません', 'error');
+              return;
+            }
+
+            showTestStatus('loading', '📡 Threads APIからデータを取得中...');
+            addDebugLog('📡 Threads API呼び出し開始', 'info');
+
+            google.script.run
+              .withSuccessHandler(function (result) {
+                addDebugLog(
+                  'API呼び出し完了: ' + JSON.stringify(result, null, 2),
+                  result.success ? 'success' : 'error'
+                );
+
+                if (result.success) {
+                  showTestStatus('success', '✅ データ取得成功！');
+                  showTestResults(result.data);
+                  addDebugLog(
+                    '✅ データ取得成功 - ユーザー: ' +
+                      (result.data.user ? result.data.user.username : 'N/A'),
+                    'success'
+                  );
+                } else {
+                  showTestStatus('error', '❌ エラー: ' + result.message);
+                  addDebugLog('❌ API エラー: ' + result.message, 'error');
                 }
-                // すべてのタブを非アクティブに
-                var tabs = document.getElementsByClassName('tab');
-                for (var i = 0; i < tabs.length; i++) {
-                    tabs[i].classList.remove('active');
-                }
-                // 選択されたものを表示
-                document.getElementById(sheetId).classList.add('active');
-                e.currentTarget.classList.add('active');
+              })
+              .withFailureHandler(function (error) {
+                console.error('API テストエラー:', error);
+                addDebugLog('❌ API呼び出し失敗: ' + error.message, 'error');
+                showTestStatus('error', '❌ API呼び出しに失敗しました: ' + error.message);
+              })
+              .testThreadsApiConnection();
+          })
+          .withFailureHandler(function (error) {
+            console.error('APIキー確認エラー:', error);
+            addDebugLog('❌ APIキー確認失敗: ' + error.message, 'error');
+            showTestStatus('error', '❌ APIキー確認に失敗しました: ' + error.message);
+          })
+          .hasApiKey();
+      }
+
+      function refreshTableData() {
+        showTestStatus('loading', '🔄 テーブルデータを更新中...');
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              showTestStatus('success', '✅ テーブル更新完了！');
+              updateDataTable(result.data);
+            } else {
+              showTestStatus('error', '❌ エラー: ' + result.message);
             }
+          })
+          .withFailureHandler(function (error) {
+            console.error('テーブル更新エラー:', error);
+            showTestStatus('error', '❌ テーブル更新に失敗しました: ' + error.message);
+          })
+          .fetchAndUpdateTableData();
+      }
 
-            // APIキー管理機能
-            function checkApiKeyStatus() {
-                google.script.run
-                    .withSuccessHandler(function(hasKey) {
-                        var indicator = document.getElementById('api-key-indicator');
-                        var editBtn = document.getElementById('edit-api-key-btn');
-                        var deleteBtn = document.getElementById('delete-api-key-btn');
+      function showTestStatus(type, message) {
+        var statusDiv = document.getElementById('test-status');
+        var messageSpan = document.getElementById('test-message');
 
-                        if (hasKey) {
-                            indicator.textContent = '✅ APIキーが設定されています';
-                            indicator.style.color = '#2e7d32';
-                            editBtn.style.display = 'inline-block';
-                            deleteBtn.style.display = 'inline-block';
-                        } else {
-                            indicator.textContent = '❌ APIキーが設定されていません';
-                            indicator.style.color = '#d32f2f';
-                            editBtn.style.display = 'inline-block';
-                            deleteBtn.style.display = 'none';
-                            showApiKeyForm(); // 未設定の場合は入力フォームを表示
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error('APIキー状態確認エラー:', error);
-                        document.getElementById('api-key-indicator').textContent = 'エラー: ' + error.message;
-                    })
-                    .hasApiKey();
+        statusDiv.style.display = 'block';
+        messageSpan.textContent = message;
+
+        // スタイル設定
+        statusDiv.className = '';
+        if (type === 'loading') {
+          statusDiv.style.background = '#e3f2fd';
+          statusDiv.style.color = '#1976d2';
+          statusDiv.style.border = '1px solid #bbdefb';
+        } else if (type === 'success') {
+          statusDiv.style.background = '#e8f5e8';
+          statusDiv.style.color = '#2e7d32';
+          statusDiv.style.border = '1px solid #c8e6c9';
+        } else if (type === 'error') {
+          statusDiv.style.background = '#ffebee';
+          statusDiv.style.color = '#c62828';
+          statusDiv.style.border = '1px solid #ffcdd2';
+        }
+      }
+
+      function showTestResults(data) {
+        var resultsDiv = document.getElementById('test-results');
+        var dataPreElement = document.getElementById('test-data');
+
+        resultsDiv.style.display = 'block';
+        dataPreElement.textContent = JSON.stringify(data, null, 2);
+      }
+
+      function updateDataTable(data) {
+        // データテーブルの更新ロジック
+        // 実際のテーブル要素を更新
+        if (data && data.posts && data.posts.length > 0) {
+          // 最新3件の投稿でテーブルを更新
+          var posts = data.posts.slice(0, 3);
+
+          // 投稿文の更新
+          var postTextCells = document.querySelectorAll('.post-text-row td');
+          posts.forEach(function (post, index) {
+            if (postTextCells[index]) {
+              postTextCells[index].innerHTML =
+                post.text.substring(0, 100) + (post.text.length > 100 ? '...' : '');
             }
+          });
 
-            function showApiKeyForm() {
-                document.getElementById('api-key-form').style.display = 'block';
-                document.getElementById('api-key-input').focus();
-            }
+          // メトリクスの更新
+          updateMetricRow(
+            'インプ(12h)',
+            posts.map(p => p.insights.views || 0)
+          );
+          updateMetricRow(
+            'いいね(12h)',
+            posts.map(p => p.insights.likes || 0)
+          );
+          updateMetricRow(
+            '再投稿/引用(12h)',
+            posts.map(p => (p.insights.reposts || 0) + (p.insights.quotes || 0))
+          );
+          updateMetricRow(
+            'リプライ(12h)',
+            posts.map(p => p.insights.replies || 0)
+          );
+          updateMetricRow(
+            'Eng総数(12h)',
+            posts.map(p => p.insights.totalEngagement || 0)
+          );
+          updateMetricRow(
+            'Eng率(12h)',
+            posts.map(p => p.insights.engagementRate + '%' || '0%')
+          );
+        }
+      }
 
-            function hideApiKeyForm() {
-                document.getElementById('api-key-form').style.display = 'none';
-                document.getElementById('api-key-input').value = '';
-            }
+      function updateMetricRow(metricName, values) {
+        var rows = document.querySelectorAll('tr');
+        for (var i = 0; i < rows.length; i++) {
+          var firstCell = rows[i].querySelector('th');
+          if (firstCell && firstCell.textContent.trim() === metricName) {
+            var dataCells = rows[i].querySelectorAll('td');
+            values.forEach(function (value, index) {
+              if (dataCells[index]) {
+                dataCells[index].textContent = value;
+              }
+            });
+            break;
+          }
+        }
+      }
 
-            function saveApiKey() {
-                var apiKey = document.getElementById('api-key-input').value.trim();
-                if (!apiKey) {
-                    alert('APIキーを入力してください');
-                    return;
-                }
-
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        if (result.success) {
-                            alert(result.message);
-                            hideApiKeyForm();
-                            checkApiKeyStatus();
-                        } else {
-                            alert('エラー: ' + result.message);
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error('APIキー保存エラー:', error);
-                        alert('APIキーの保存に失敗しました: ' + error.message);
-                    })
-                    .saveApiKey(apiKey);
-            }
-
-            function deleteApiKey() {
-                if (!confirm('APIキーを削除してもよろしいですか？')) {
-                    return;
-                }
-
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        if (result.success) {
-                            alert(result.message);
-                            checkApiKeyStatus();
-                        } else {
-                            alert('エラー: ' + result.message);
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error('APIキー削除エラー:', error);
-                        alert('APIキーの削除に失敗しました: ' + error.message);
-                    })
-                    .deleteApiKey();
-            }
-
-            // APIテスト機能
-            function testThreadsApi() {
-                showTestStatus('loading', '🔄 APIキーを確認中...');
-                
-                google.script.run
-                    .withSuccessHandler(function(hasKey) {
-                        if (!hasKey) {
-                            showTestStatus('error', '❌ APIキーが設定されていません。まずAPIキーを設定してください。');
-                            return;
-                        }
-                        
-                        showTestStatus('loading', '📡 Threads APIからデータを取得中...');
-                        
-                        google.script.run
-                            .withSuccessHandler(function(result) {
-                                if (result.success) {
-                                    showTestStatus('success', '✅ データ取得成功！');
-                                    showTestResults(result.data);
-                                } else {
-                                    showTestStatus('error', '❌ エラー: ' + result.message);
-                                }
-                            })
-                            .withFailureHandler(function(error) {
-                                console.error('API テストエラー:', error);
-                                showTestStatus('error', '❌ API呼び出しに失敗しました: ' + error.message);
-                            })
-                            .testThreadsApiConnection();
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error('APIキー確認エラー:', error);
-                        showTestStatus('error', '❌ APIキー確認に失敗しました: ' + error.message);
-                    })
-                    .hasApiKey();
-            }
-
-            function refreshTableData() {
-                showTestStatus('loading', '🔄 テーブルデータを更新中...');
-                
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        if (result.success) {
-                            showTestStatus('success', '✅ テーブル更新完了！');
-                            updateDataTable(result.data);
-                        } else {
-                            showTestStatus('error', '❌ エラー: ' + result.message);
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error('テーブル更新エラー:', error);
-                        showTestStatus('error', '❌ テーブル更新に失敗しました: ' + error.message);
-                    })
-                    .fetchAndUpdateTableData();
-            }
-
-            function showTestStatus(type, message) {
-                var statusDiv = document.getElementById('test-status');
-                var messageSpan = document.getElementById('test-message');
-                
-                statusDiv.style.display = 'block';
-                messageSpan.textContent = message;
-                
-                // スタイル設定
-                statusDiv.className = '';
-                if (type === 'loading') {
-                    statusDiv.style.background = '#e3f2fd';
-                    statusDiv.style.color = '#1976d2';
-                    statusDiv.style.border = '1px solid #bbdefb';
-                } else if (type === 'success') {
-                    statusDiv.style.background = '#e8f5e8';
-                    statusDiv.style.color = '#2e7d32';
-                    statusDiv.style.border = '1px solid #c8e6c9';
-                } else if (type === 'error') {
-                    statusDiv.style.background = '#ffebee';
-                    statusDiv.style.color = '#c62828';
-                    statusDiv.style.border = '1px solid #ffcdd2';
-                }
-            }
-
-            function showTestResults(data) {
-                var resultsDiv = document.getElementById('test-results');
-                var dataPreElement = document.getElementById('test-data');
-                
-                resultsDiv.style.display = 'block';
-                dataPreElement.textContent = JSON.stringify(data, null, 2);
-            }
-
-            function updateDataTable(data) {
-                // データテーブルの更新ロジック
-                // 実際のテーブル要素を更新
-                if (data && data.posts && data.posts.length > 0) {
-                    // 最新3件の投稿でテーブルを更新
-                    var posts = data.posts.slice(0, 3);
-                    
-                    // 投稿文の更新
-                    var postTextCells = document.querySelectorAll('.post-text-row td');
-                    posts.forEach(function(post, index) {
-                        if (postTextCells[index]) {
-                            postTextCells[index].innerHTML = post.text.substring(0, 100) + (post.text.length > 100 ? '...' : '');
-                        }
-                    });
-                    
-                    // メトリクスの更新
-                    updateMetricRow('インプ(12h)', posts.map(p => p.insights.views || 0));
-                    updateMetricRow('いいね(12h)', posts.map(p => p.insights.likes || 0));
-                    updateMetricRow('再投稿/引用(12h)', posts.map(p => (p.insights.reposts || 0) + (p.insights.quotes || 0)));
-                    updateMetricRow('リプライ(12h)', posts.map(p => p.insights.replies || 0));
-                    updateMetricRow('Eng総数(12h)', posts.map(p => p.insights.totalEngagement || 0));
-                    updateMetricRow('Eng率(12h)', posts.map(p => p.insights.engagementRate + '%' || '0%'));
-                }
-            }
-
-            function updateMetricRow(metricName, values) {
-                var rows = document.querySelectorAll('tr');
-                for (var i = 0; i < rows.length; i++) {
-                    var firstCell = rows[i].querySelector('th');
-                    if (firstCell && firstCell.textContent.trim() === metricName) {
-                        var dataCells = rows[i].querySelectorAll('td');
-                        values.forEach(function(value, index) {
-                            if (dataCells[index]) {
-                                dataCells[index].textContent = value;
-                            }
-                        });
-                        break;
-                    }
-                }
-            }
-
-            // ページ読み込み時にAPIキー状態を確認
-            window.onload = function() {
-                checkApiKeyStatus();
-            };
-        </script>
-
-</body>
+      // ページ読み込み時にAPIキー状態を確認
+      window.onload = function () {
+        checkApiKeyStatus();
+      };
+    </script>
+  </body>
 </html>

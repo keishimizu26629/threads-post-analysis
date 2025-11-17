@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "ES2017",
     "module": "None",
-    "lib": ["ES2017"],
+    "noEmit": false,
+    "isolatedModules": false,
+    "lib": ["ES2017", "ES2018", "ES2019"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -22,12 +24,6 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "scripts"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "scripts"]
 }

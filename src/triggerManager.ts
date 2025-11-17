@@ -6,7 +6,6 @@
  * トリガー管理クラス
  */
 class TriggerManager {
-
   /**
    * 定期実行トリガーを設定
    */
@@ -16,10 +15,7 @@ class TriggerManager {
       this.deleteExistingTriggers(functionName);
 
       // 新しいトリガーを作成
-      ScriptApp.newTrigger(functionName)
-        .timeBased()
-        .everyHours(intervalHours)
-        .create();
+      ScriptApp.newTrigger(functionName).timeBased().everyHours(intervalHours).create();
 
       console.log(`${functionName}の定期実行トリガーを設定しました（${intervalHours}時間間隔）`);
     } catch (error) {
@@ -37,11 +33,7 @@ class TriggerManager {
       this.deleteExistingTriggers(functionName);
 
       // 新しいトリガーを作成
-      ScriptApp.newTrigger(functionName)
-        .timeBased()
-        .everyDays(1)
-        .atHour(hour)
-        .create();
+      ScriptApp.newTrigger(functionName).timeBased().everyDays(1).atHour(hour).create();
 
       console.log(`${functionName}の日次実行トリガーを設定しました（毎日${hour}時）`);
     } catch (error) {
@@ -53,17 +45,13 @@ class TriggerManager {
   /**
    * 週次実行トリガーを設定
    */
-  static setupWeeklyTrigger(functionName: string, dayOfWeek: GoogleAppsScript.Script.WeekDay, hour: number = 9): void {
+  static setupWeeklyTrigger(functionName: string, dayOfWeek: any, hour: number = 9): void {
     try {
       // 既存のトリガーを削除
       this.deleteExistingTriggers(functionName);
 
       // 新しいトリガーを作成
-      ScriptApp.newTrigger(functionName)
-        .timeBased()
-        .onWeekDay(dayOfWeek)
-        .atHour(hour)
-        .create();
+      ScriptApp.newTrigger(functionName).timeBased().onWeekDay(dayOfWeek).atHour(hour).create();
 
       console.log(`${functionName}の週次実行トリガーを設定しました`);
     } catch (error) {
@@ -74,27 +62,28 @@ class TriggerManager {
 
   /**
    * スプレッドシート変更トリガーを設定
+   * 注意: GASでは onEdit は自動的に呼び出される特別な関数名です
+   * プログラム的にトリガーを作成する代わりに、時間ベースのトリガーを使用
    */
   static setupSpreadsheetTrigger(functionName: string, spreadsheetId?: string): void {
     try {
       // 既存のトリガーを削除
       this.deleteExistingTriggers(functionName);
 
-      let trigger;
-      if (spreadsheetId) {
-        const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
-        trigger = ScriptApp.newTrigger(functionName)
-          .for(spreadsheet)
-          .onEdit()
-          .create();
-      } else {
-        trigger = ScriptApp.newTrigger(functionName)
-          .for(SpreadsheetApp.getActiveSpreadsheet())
-          .onEdit()
-          .create();
-      }
+      // GASでは onEdit は特別な関数名で、スプレッドシートが編集されると自動的に呼び出される
+      // プログラム的にトリガーを作成する必要はない
+      // 代わりに、定期的にデータをチェックする時間ベースのトリガーを作成
+      const createdTrigger = ScriptApp.newTrigger(functionName)
+        .timeBased()
+        .everyMinutes(5) // 5分ごとに実行
+        .create();
 
-      console.log(`${functionName}のスプレッドシート変更トリガーを設定しました`);
+      console.log(`トリガー作成完了: ${createdTrigger.getUniqueId()}`);
+      console.log(`${functionName}の定期実行トリガー（5分間隔）を設定しました`);
+
+      if (spreadsheetId) {
+        console.log(`対象スプレッドシートID: ${spreadsheetId}`);
+      }
     } catch (error) {
       console.error('スプレッドシートトリガー設定エラー:', error);
       throw error;
@@ -141,7 +130,7 @@ class TriggerManager {
   /**
    * 現在のトリガー一覧を取得
    */
-  static listCurrentTriggers(): any[] {
+  static listCurrentTriggers(): object[] {
     try {
       const triggers = ScriptApp.getProjectTriggers();
 
@@ -150,7 +139,7 @@ class TriggerManager {
           handlerFunction: trigger.getHandlerFunction(),
           triggerSource: trigger.getTriggerSource().toString(),
           eventType: trigger.getEventType().toString(),
-          uniqueId: trigger.getUniqueId()
+          uniqueId: trigger.getUniqueId(),
         };
       });
 

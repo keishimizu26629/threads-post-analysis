@@ -3,6 +3,9 @@
  * Google Apps ScriptでWebアプリとして動作するThreads投稿分析システム
  */
 
+// GAS環境では import/export は使用できないため、型定義のみ参照
+// 実際のクラスはグローバルスコープで利用可能
+
 /**
  * WebアプリのGETリクエストを処理
  * HTMLページを返す
@@ -27,9 +30,10 @@ function doGet(e: GoogleAppsScript.Events.DoGet): GoogleAppsScript.HTML.HtmlOutp
     }
   } catch (error) {
     console.error('doGet エラー:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return HtmlService.createHtmlOutput(`
       <h1>エラーが発生しました</h1>
-      <p>${error.toString()}</p>
+      <p>${errorMessage}</p>
     `);
   }
 }
@@ -71,18 +75,18 @@ function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Content.Tex
         throw new Error(`未知のアクション: ${action}`);
     }
 
-    return ContentService
-      .createTextOutput(JSON.stringify({ success: true, data: result }))
-      .setMimeType(ContentService.MimeType.JSON);
-
+    return ContentService.createTextOutput(
+      JSON.stringify({ success: true, data: result })
+    ).setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
     console.error('doPost エラー:', error);
-    return ContentService
-      .createTextOutput(JSON.stringify({
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return ContentService.createTextOutput(
+      JSON.stringify({
         success: false,
-        error: error.toString()
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
+        error: errorMessage,
+      })
+    ).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -91,7 +95,13 @@ function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Content.Tex
  * HTMLテンプレート内で <?!= include('filename'); ?> として使用
  */
 function include(filename: string): string {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  try {
+    return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  } catch (error) {
+    console.error(`HTMLファイル読み込みエラー (${filename}):`, error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return `<!-- HTMLファイル '${filename}' の読み込みに失敗しました: ${errorMessage} -->`;
+  }
 }
 
 // API キー管理機能
@@ -134,7 +144,7 @@ function deleteApiKey(): { success: boolean; message: string } {
 }
 
 // Threads API テスト機能
-function testThreadsApiConnection(): { success: boolean; message?: string; data?: any } {
+function testThreadsApiConnection(): { success: boolean; message?: string; data?: object } {
   try {
     const apiKey = getApiKey();
     if (!apiKey) {
@@ -158,16 +168,17 @@ function testThreadsApiConnection(): { success: boolean; message?: string; data?
       data: {
         user: userInfo.data,
         posts: posts.data,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     };
   } catch (error) {
     console.error('API接続テストエラー:', error);
-    return { success: false, message: 'API接続テストでエラーが発生しました: ' + error.toString() };
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return { success: false, message: 'API接続テストでエラーが発生しました: ' + errorMessage };
   }
 }
 
-function fetchAndUpdateTableData(): { success: boolean; message?: string; data?: any } {
+function fetchAndUpdateTableData(): { success: boolean; message?: string; data?: object } {
   try {
     const apiKey = getApiKey();
     if (!apiKey) {
@@ -180,24 +191,26 @@ function fetchAndUpdateTableData(): { success: boolean; message?: string; data?:
       return { success: false, message: '投稿データの取得に失敗: ' + postsResult.message };
     }
 
-    const posts = postsResult.data;
+    const posts = postsResult.data as any[];
     const processedPosts = [];
 
     // 各投稿のインサイトを取得
     for (const post of posts) {
       try {
         const insightsResult = fetchPostInsights(apiKey, post.id);
-        const insights = insightsResult.success ? insightsResult.data : {};
-        
+        const insightsData = insightsResult.success ? insightsResult.data : null;
+
         // データ変換
         const processedPost = {
           id: post.id,
           text: post.text,
           timestamp: post.timestamp,
           mediaType: post.media_type,
-          insights: convertInsightsToMetrics(insights)
+          insights: insightsData
+            ? convertInsightsToMetrics([insightsData])
+            : convertInsightsToMetrics([]),
         };
-        
+
         processedPosts.push(processedPost);
       } catch (error) {
         console.error(`投稿 ${post.id} のインサイト取得エラー:`, error);
@@ -214,8 +227,8 @@ function fetchAndUpdateTableData(): { success: boolean; message?: string; data?:
             reposts: 0,
             quotes: 0,
             totalEngagement: 0,
-            engagementRate: '0.00'
-          }
+            engagementRate: '0.00',
+          },
         });
       }
     }
@@ -224,32 +237,38 @@ function fetchAndUpdateTableData(): { success: boolean; message?: string; data?:
       success: true,
       data: {
         posts: processedPosts,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     };
   } catch (error) {
     console.error('テーブルデータ更新エラー:', error);
-    return { success: false, message: 'テーブルデータの更新でエラーが発生しました: ' + error.toString() };
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      message: 'テーブルデータの更新でエラーが発生しました: ' + errorMessage,
+    };
   }
 }
 
 /**
  * 投稿データを取得
  */
-function getPostData(): any {
+function getPostData(): { success: boolean; data?: object; error?: string } {
   try {
     const dataManager = new DataManager();
-    return dataManager.getStoredPostData();
+    const data = dataManager.getStoredPostData();
+    return { success: true, data };
   } catch (error) {
     console.error('投稿データ取得エラー:', error);
-    throw error;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return { success: false, error: errorMessage };
   }
 }
 
 /**
  * 設定を更新
  */
-function updateSettings(settings: any): boolean {
+function updateSettings(settings: object): boolean {
   try {
     const dataManager = new DataManager();
     dataManager.saveSettings(settings);
@@ -263,28 +282,35 @@ function updateSettings(settings: any): boolean {
 /**
  * 分析を実行
  */
-function runAnalysis(): any {
+function runAnalysis(): object {
   try {
     console.log('Threads投稿分析を開始します');
 
     // 設定の読み込み
     const dataManager = new DataManager();
-    const config = dataManager.getSettings();
+    const config = dataManager.getSettings() as any;
 
     if (!config.accessToken || !config.userId) {
       throw new Error('アクセストークンまたはユーザーIDが設定されていません');
     }
 
     // Threads APIからデータを取得
-    const threadsApi = new ThreadsApiClient(config.accessToken);
-    const threadsData = threadsApi.getUserPosts(config.userId, config.postLimit || 25);
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      throw new Error('APIキーが設定されていません');
+    }
+
+    const threadsData = fetchUserPosts(apiKey, config.postLimit || 25);
+    if (!threadsData.success) {
+      throw new Error('投稿データの取得に失敗: ' + threadsData.message);
+    }
 
     // データを処理・分析
-    const analysisResult = DataProcessor.analyzePostData(threadsData.data || []);
+    const analysisResult = DataProcessor.analyzePostData((threadsData.data as any[]) || []);
 
     // 結果を保存
     dataManager.saveAnalysisResult(analysisResult);
-    dataManager.savePostData(threadsData.data || []);
+    dataManager.savePostData((threadsData.data as any[]) || []);
 
     console.log('分析が完了しました');
     return analysisResult;
@@ -297,7 +323,7 @@ function runAnalysis(): any {
 /**
  * 分析データを取得
  */
-function getAnalysisData(): any {
+function getAnalysisData(): object {
   try {
     const dataManager = new DataManager();
     return dataManager.getAnalysisResult();

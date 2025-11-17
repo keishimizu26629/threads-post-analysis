@@ -2,6 +2,9 @@
  * データ管理クラス
  * PropertiesServiceを使用してデータを永続化
  */
+
+// GAS環境では import/export は使用できないため、型定義のみ参照
+
 class DataManager {
   private properties: GoogleAppsScript.Properties.Properties;
 
@@ -12,7 +15,7 @@ class DataManager {
   /**
    * 設定情報を保存
    */
-  saveSettings(settings: any): void {
+  saveSettings(settings: object): void {
     try {
       this.properties.setProperty('SETTINGS', JSON.stringify(settings));
       console.log('設定を保存しました');
@@ -25,7 +28,7 @@ class DataManager {
   /**
    * 設定情報を取得
    */
-  getSettings(): any {
+  getSettings(): object {
     try {
       const settingsJson = this.properties.getProperty('SETTINGS');
       if (settingsJson) {
@@ -41,8 +44,8 @@ class DataManager {
         highlightSettings: {
           blue: 1.5,
           yellow: 2.0,
-          red: 3.0
-        }
+          red: 3.0,
+        },
       };
     } catch (error) {
       console.error('設定取得エラー:', error);
@@ -59,10 +62,13 @@ class DataManager {
       const dataKey = `POST_DATA_${timestamp}`;
 
       // 最新のデータを保存
-      this.properties.setProperty('LATEST_POST_DATA', JSON.stringify({
-        timestamp: timestamp,
-        posts: posts
-      }));
+      this.properties.setProperty(
+        'LATEST_POST_DATA',
+        JSON.stringify({
+          timestamp: timestamp,
+          posts: posts,
+        })
+      );
 
       // 履歴として保存（最大10件）
       this.saveToHistory('POST_HISTORY', dataKey, posts);
@@ -77,7 +83,7 @@ class DataManager {
   /**
    * 投稿データを取得
    */
-  getStoredPostData(): any {
+  getStoredPostData(): object {
     try {
       const latestDataJson = this.properties.getProperty('LATEST_POST_DATA');
       if (latestDataJson) {
@@ -86,7 +92,7 @@ class DataManager {
 
       return {
         timestamp: null,
-        posts: []
+        posts: [],
       };
     } catch (error) {
       console.error('投稿データ取得エラー:', error);
@@ -97,12 +103,12 @@ class DataManager {
   /**
    * 分析結果を保存
    */
-  saveAnalysisResult(analysisResult: any): void {
+  saveAnalysisResult(analysisResult: object): void {
     try {
       const timestamp = new Date().getTime();
       const resultWithTimestamp = {
         timestamp: timestamp,
-        result: analysisResult
+        result: analysisResult,
       };
 
       // 最新の分析結果を保存
@@ -121,7 +127,7 @@ class DataManager {
   /**
    * 分析結果を取得
    */
-  getAnalysisResult(): any {
+  getAnalysisResult(): object {
     try {
       const latestAnalysisJson = this.properties.getProperty('LATEST_ANALYSIS');
       if (latestAnalysisJson) {
@@ -130,7 +136,7 @@ class DataManager {
 
       return {
         timestamp: null,
-        result: null
+        result: null,
       };
     } catch (error) {
       console.error('分析結果取得エラー:', error);
@@ -141,11 +147,16 @@ class DataManager {
   /**
    * 履歴データを保存（最大件数制限付き）
    */
-  private saveToHistory(historyKey: string, dataKey: string, data: any, maxItems: number = 10): void {
+  private saveToHistory(
+    historyKey: string,
+    dataKey: string,
+    data: object,
+    maxItems: number = 10
+  ): void {
     try {
       // 現在の履歴を取得
       const historyJson = this.properties.getProperty(historyKey);
-      let history: string[] = historyJson ? JSON.parse(historyJson) : [];
+      const history: string[] = historyJson ? JSON.parse(historyJson) : [];
 
       // 新しいデータを追加
       history.unshift(dataKey);
@@ -163,7 +174,6 @@ class DataManager {
 
       // データを保存
       this.properties.setProperty(dataKey, JSON.stringify(data));
-
     } catch (error) {
       console.error('履歴保存エラー:', error);
       throw error;
@@ -173,7 +183,7 @@ class DataManager {
   /**
    * 履歴データを取得
    */
-  getHistory(historyKey: string, limit: number = 10): any[] {
+  getHistory(historyKey: string, limit: number = 10): object[] {
     try {
       const historyJson = this.properties.getProperty(historyKey);
       if (!historyJson) {
@@ -181,7 +191,7 @@ class DataManager {
       }
 
       const history: string[] = JSON.parse(historyJson);
-      const results: any[] = [];
+      const results: object[] = [];
 
       for (let i = 0; i < Math.min(history.length, limit); i++) {
         const dataKey = history[i];
@@ -189,7 +199,7 @@ class DataManager {
         if (dataJson) {
           results.push({
             key: dataKey,
-            data: JSON.parse(dataJson)
+            data: JSON.parse(dataJson),
           });
         }
       }
@@ -204,7 +214,7 @@ class DataManager {
   /**
    * 統計データを保存
    */
-  saveStatistics(stats: any): void {
+  saveStatistics(stats: object): void {
     try {
       const currentMonth = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM');
       const statsKey = `STATS_${currentMonth}`;
@@ -220,7 +230,7 @@ class DataManager {
   /**
    * 統計データを取得
    */
-  getStatistics(month?: string): any {
+  getStatistics(month?: string): object {
     try {
       const targetMonth = month || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM');
       const statsKey = `STATS_${targetMonth}`;
@@ -230,7 +240,7 @@ class DataManager {
         return JSON.parse(statsJson);
       }
 
-      return null;
+      return {};
     } catch (error) {
       console.error('統計データ取得エラー:', error);
       throw error;
@@ -256,14 +266,14 @@ class DataManager {
   /**
    * データサイズを取得（デバッグ用）
    */
-  getDataSize(): any {
+  getDataSize(): object {
     try {
       const properties = this.properties.getProperties();
-      const sizes: any = {};
+      const sizes: { [key: string]: number } = {};
       let totalSize = 0;
 
       Object.entries(properties).forEach(([key, value]) => {
-        const size = new Blob([value]).size;
+        const size = value ? value.length : 0;
         sizes[key] = size;
         totalSize += size;
       });
@@ -271,7 +281,7 @@ class DataManager {
       return {
         totalSize: totalSize,
         itemCount: Object.keys(properties).length,
-        details: sizes
+        details: sizes,
       };
     } catch (error) {
       console.error('データサイズ取得エラー:', error);
