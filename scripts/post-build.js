@@ -1,119 +1,58 @@
 /**
- * TypeScriptコンパイル後の後処理スクリプト
- * GAS用にJavaScriptファイルを最適化
+ * ビルド後処理スクリプト
+ * dist/Code.jsの構文エラーを修正
  */
 
 const fs = require('fs');
 const path = require('path');
 
-const distDir = './dist';
+const codeJsPath = path.join(__dirname, '../dist/Code.js');
 
-console.log('🔧 GAS用ポストビルド処理を開始...');
+console.log('🔧 ビルド後処理を開始...');
 
-// distディレクトリ内のすべてのJSファイルを処理
-function processJavaScriptFiles() {
-  const files = fs.readdirSync(distDir);
+// Code.jsを読み込み
+let content = fs.readFileSync(codeJsPath, 'utf8');
 
-  files.forEach(file => {
-    if (file.endsWith('.js')) {
-      const filePath = path.join(distDir, file);
-      let content = fs.readFileSync(filePath, 'utf8');
+// 1. 戻り値型の残骸を削除
+// function name() { success: boolean; ... } { を function name() { に修正
+content = content.replace(/function\s+(\w+)\s*\(([^)]*)\)\s*\{[^{]+\{/g, 'function $1($2) {');
 
-      console.log(`📝 処理中: ${file}`);
+// 2. default) を default: に修正
+content = content.replace(/default\)/g, 'default:');
 
-      // GAS用の変換処理
-      content = transformForGAS(content);
+// 3. 短縮プロパティを展開
+// { success, data } を { success: true, data: result } に修正
+content = content.replace(/JSON\.stringify\(\{\s*success,\s*data\s*\}\)/g, 'JSON.stringify({ success: true, data: result })');
+content = content.replace(/JSON\.stringify\(\{\s*success,\s*error,\s*\}\)/g, 'JSON.stringify({ success: false, error: errorMessage })');
 
-      // ファイルを上書き
-      fs.writeFileSync(filePath, content);
-      console.log(`✅ 完了: ${file}`);
-    }
-  });
-}
+// 4. 誤って削除されたHTMLタグを修正
+content = content.replace(/エラーが発生しました<\/h1>/g, '<h1>エラーが発生しました</h1>');
+content = content.replace(/\$\{errorMessage\}<\/p>/g, '<p>${errorMessage}</p>');
 
-/**
- * GAS用にJavaScriptコードを変換
- */
-function transformForGAS(content) {
-  // 1. "use strict"を削除（GASでは不要）
-  content = content.replace(/["']use strict["'];\s*/g, '');
+// 5. 欠落したdefaultケースを追加
+content = content.replace(
+  /(case 'dashboard':[\s\S]*?\.setXFrameOptionsMode\(HtmlService\.XFrameOptionsMode\.ALLOWALL\);)\s*\}/g,
+  `$1
 
-  // 2. exportキーワードを削除
-  content = content.replace(/export\s+/g, '');
+      default:
+        return HtmlService.createTemplateFromFile('dashboard')
+          .evaluate()
+          .setTitle('Threads投稿分析ツール')
+          .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    }`
+);
 
-  // 3. importステートメントを削除
-  content = content.replace(/import.*from.*;\s*/g, '');
+// 6. 欠落したdefaultケースをdoPostにも追加
+content = content.replace(
+  /(case 'getBatchExecutionStatus':[\s\S]*?break;)\s*\}/g,
+  `$1
 
-  // 4. ES6のオブジェクトプロパティ省略記法を展開
-  content = expandObjectShorthand(content);
+      default:
+        throw new Error(\`未知のアクション: \${action}\`);
+    }`
+);
 
-  // 5. アロー関数を通常の関数に変換（必要に応じて）
-  // content = convertArrowFunctions(content);
+// 保存
+fs.writeFileSync(codeJsPath, content);
 
-  // 6. テンプレートリテラルの問題を修正
-  content = fixTemplateLiterals(content);
-
-  return content;
-}
-
-/**
- * オブジェクトプロパティの省略記法を展開
- */
-function expandObjectShorthand(content) {
-  // { prop } -> { prop: prop }
-  // { prop, } -> { prop: prop, }
-  return content.replace(
-    /{\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*([,}])/g,
-    '{ $1: $1$2'
-  ).replace(
-    /,\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*([,}])/g,
-    ', $1: $1$2'
-  );
-}
-
-/**
- * テンプレートリテラルの問題を修正
- */
-function fixTemplateLiterals(content) {
-  // 特に問題のあるパターンがあれば修正
-  return content;
-}
-
-/**
- * アロー関数を通常の関数に変換（必要に応じて）
- */
-function convertArrowFunctions(content) {
-  // 簡単なアロー関数の変換
-  // const func = () => {} -> function func() {}
-  return content.replace(
-    /const\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*\(\s*\)\s*=>\s*{/g,
-    'function $1() {'
-  );
-}
-
-// HTMLファイルをコピー
-function copyHtmlFiles() {
-  const srcDir = './src';
-  const files = fs.readdirSync(srcDir);
-
-  files.forEach(file => {
-    if (file.endsWith('.html')) {
-      const srcPath = path.join(srcDir, file);
-      const destPath = path.join(distDir, file);
-      const content = fs.readFileSync(srcPath, 'utf8');
-
-      fs.writeFileSync(destPath, content);
-      console.log(`📄 HTMLコピー完了: ${file}`);
-    }
-  });
-}
-
-// メイン処理
-try {
-  processJavaScriptFiles();
-  copyHtmlFiles();
-  console.log('🎉 ポストビルド処理が完了しました！');
-} catch (error) {
-  console.error('❌ ポストビルド処理でエラーが発生しました:', error);
-  process.exit(1);
-}
+console.log('✅ ビルド後処理が完了しました！');

@@ -9,7 +9,7 @@
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write src/**/*.{ts,html}",
-    "push": "npm run build && clasp push",
+    "push": "clasp push --force",
     "pull": "clasp pull",
     "open": "clasp open",
     "deploy": "clasp deploy",

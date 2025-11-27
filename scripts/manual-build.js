@@ -51,53 +51,45 @@ function processTypeScriptFiles() {
  * TypeScriptをJavaScriptに変換
  */
 function convertToJavaScript(content) {
-  // 関数シグネチャ内の型注釈を削除するヘルパー
-  const stripParams = (paramText) => {
-    return paramText
-      .replace(/(\w+)\s*\?:\s*[^,]+/g, '$1') // optional parameter
-      .replace(/(\w+)\s*:\s*[^,]+/g, '$1');  // normal parameter
-  };
-
-  // 1. 関数宣言の引数・戻り値の型を削除
-  content = content.replace(/function\s+(\w+)\s*\(([^)]*)\)\s*:\s*[^ {]+\s*{/g, (match, name, params) => {
-    return `function ${name}(${stripParams(params)}) {`;
-  });
-  content = content.replace(/function\s+(\w+)\s*\(([^)]*)\)/g, (match, name, params) => {
-    return `function ${name}(${stripParams(params)})`;
-  });
-
-  // 2. アロー関数の型注釈を削除（簡易）
-  content = content.replace(/\(([^)]*)\)\s*:\s*[^=]+=>/g, (match, params) => {
-    return `(${stripParams(params)}) =>`;
-  });
-
-  // 3. 変数宣言の型注釈を削除
-  content = content.replace(/(let|const|var)\s+(\w+)\s*:\s*[^=;]+/g, '$1 $2');
-
-  // 4. クラス内プロパティ宣言を削除
-  content = content.replace(/^\s*\w+\s*:\s*[^;]+;\s*$/gm, '');
-
-  // 5. 戻り値型（残ったもの）を削除
-  content = content.replace(/\)\s*:\s*[^ {]+\s*{/g, ') {');
-
-  // 6. インターフェース定義を削除
-  content = content.replace(/interface\s+\w+\s*{[^}]*}/gs, '');
-
-  // 7. export/importを削除
+  // 1. export/importを削除
   content = content.replace(/export\s+/g, '');
   content = content.replace(/import.*from.*;\s*/g, '');
 
-  // 8. "use strict"を削除
-  content = content.replace(/["']use strict["'];\s*/g, '');
+  // 2. インターフェース定義を削除
+  content = content.replace(/interface\s+\w+\s*\{[^}]*\}/gs, '');
 
-  // 9. アクセス修飾子とreadonlyを削除
+  // 3. 型アサーション (as Type) を削除
+  content = content.replace(/\s+as\s+[A-Za-z_][A-Za-z0-9_.<>[\]|&\s]*/g, '');
+
+  // 4. ジェネリクス型パラメータを削除
+  content = content.replace(/<[A-Za-z_][A-Za-z0-9_,\s<>[\]|&]*>/g, '');
+
+  // 5. 関数の戻り値型を削除（パラメータより先に処理）
+  // function name(): Type { → function name() {
+  content = content.replace(/\)\s*:\s*[^{=]+(\{|=>)/g, ') $1');
+
+  // 6. 変数宣言の型注釈を削除
+  // const name: Type = → const name =
+  content = content.replace(/(let|const|var)\s+(\w+)\s*:\s*[^=;]+\s*=/g, '$1 $2 =');
+  content = content.replace(/(let|const|var)\s+(\w+)\s*:\s*[^;]+;/g, '$1 $2;');
+
+  // 7. 関数パラメータの型注釈を削除
+  // (param: Type) → (param)
+  // ただし、default:, case: などのswitch文のコロンは保護
+  content = content.replace(/\(([^)]*)\)/g, (match, params) => {
+    // パラメータ内の型注釈のみを削除
+    const cleanedParams = params.replace(/(\w+)\s*\??\s*:\s*[^,)=]+/g, '$1');
+    return `(${cleanedParams})`;
+  });
+
+  // 8. アクセス修飾子を削除
   content = content.replace(/\b(private|public|protected|readonly)\s+/g, '');
 
-  // 10. 型アサーションを削除
-  content = content.replace(/as\s+[A-Za-z_][A-Za-z0-9_.<>[\]|&\s]*/g, '');
+  // 9. クラス内プロパティの型宣言を削除
+  content = content.replace(/^\s*\w+\s*:\s*[^=;]+;\s*$/gm, '');
 
-  // 11. ジェネリクスを削除（簡易）
-  content = content.replace(/<[A-Za-z_][A-Za-z0-9_,\s<>]*>/g, '');
+  // 10. "use strict"を削除
+  content = content.replace(/["']use strict["'];\s*/g, '');
 
   return content;
 }
