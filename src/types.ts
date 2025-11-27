@@ -122,3 +122,74 @@ interface DataHistory {
   maxItems: number;
   lastUpdated: number;
 }
+
+// スプレッドシート関連の型定義
+interface SpreadsheetConfig {
+  id: string;
+  name?: string;
+  url?: string;
+  sheetName: string;
+  lastAccessed?: Date;
+}
+
+interface TimeSeriesData {
+  timestamp: Date;
+  postId: string;
+  text: string;
+  charCount: number;
+  type: string;
+  postDate: Date;
+  impressions: number;
+  likes: number;
+  reposts: number;
+  quotes: number;
+  replies: number;
+  totalEngagement: number;
+  engagementRate: string;
+  followerCount: number;
+  fetchTime: Date;
+}
+
+interface PostDataForSpreadsheet {
+  id: string;
+  text: string;
+  mediaType: string;
+  timestamp: string;
+  insights: {
+    views: number;
+    likes: number;
+    reposts: number;
+    quotes: number;
+    replies: number;
+    totalEngagement: number;
+    engagementRate: string;
+  };
+  followerCount?: number;
+}
+
+interface SpreadsheetOperationResult {
+  success: boolean;
+  message: string;
+  data?: object;
+  rowsAffected?: number;
+}
+
+interface DataFilterOptions {
+  postDate?: Date;
+  hoursRange?: number;
+  postId?: string;
+  limit?: number;
+  sortBy?: 'timestamp' | 'postDate' | 'fetchTime';
+  sortOrder?: 'asc' | 'desc';
+}
+
+interface SpreadsheetStatistics {
+  totalRows: number;
+  lastUpdate: Date | null;
+  sheetName: string;
+  uniquePosts?: number;
+  dateRange?: {
+    earliest: Date;
+    latest: Date;
+  };
+}

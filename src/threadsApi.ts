@@ -148,3 +148,98 @@ function convertInsightsToMetrics(insights: object[]): object {
 
   return metrics;
 }
+
+// リトライ機能付きAPI呼び出し関数
+/**
+ * リトライ機能付き投稿一覧取得
+ */
+function fetchUserPostsWithRetry(
+  apiKey: string,
+  limit: number = 25,
+  maxRetries: number = 3
+): { success: boolean; data?: object; message?: string } {
+  let lastError = '';
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`投稿一覧取得試行 ${attempt}/${maxRetries}`);
+      const result = fetchUserPosts(apiKey, limit);
+      
+      if (result.success) {
+        console.log(`投稿一覧取得成功 (試行 ${attempt}回目)`);
+        return result;
+      }
+      
+      lastError = result.message || '不明なエラー';
+      console.warn(`投稿一覧取得失敗 (試行 ${attempt}/${maxRetries}): ${lastError}`);
+      
+      // 最後の試行でなければ待機
+      if (attempt < maxRetries) {
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // 指数バックオフ（最大10秒）
+        console.log(`${waitTime}ms 待機してリトライします...`);
+        Utilities.sleep(waitTime);
+      }
+      
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      console.error(`投稿一覧取得エラー (試行 ${attempt}/${maxRetries}):`, error);
+      
+      if (attempt < maxRetries) {
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+        Utilities.sleep(waitTime);
+      }
+    }
+  }
+  
+  return {
+    success: false,
+    message: `${maxRetries}回の試行後も失敗しました: ${lastError}`
+  };
+}
+
+/**
+ * リトライ機能付き投稿インサイト取得
+ */
+function fetchPostInsightsWithRetry(
+  apiKey: string,
+  postId: string,
+  maxRetries: number = 3
+): { success: boolean; data?: object; message?: string } {
+  let lastError = '';
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`インサイト取得試行 ${attempt}/${maxRetries} (投稿ID: ${postId})`);
+      const result = fetchPostInsights(apiKey, postId);
+      
+      if (result.success) {
+        console.log(`インサイト取得成功 (試行 ${attempt}回目)`);
+        return result;
+      }
+      
+      lastError = result.message || '不明なエラー';
+      console.warn(`インサイト取得失敗 (試行 ${attempt}/${maxRetries}): ${lastError}`);
+      
+      // 最後の試行でなければ待機
+      if (attempt < maxRetries) {
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+        console.log(`${waitTime}ms 待機してリトライします...`);
+        Utilities.sleep(waitTime);
+      }
+      
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      console.error(`インサイト取得エラー (試行 ${attempt}/${maxRetries}):`, error);
+      
+      if (attempt < maxRetries) {
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+        Utilities.sleep(waitTime);
+      }
+    }
+  }
+  
+  return {
+    success: false,
+    message: `${maxRetries}回の試行後も失敗しました: ${lastError}`
+  };
+}

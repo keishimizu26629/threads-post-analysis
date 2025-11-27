@@ -14,7 +14,8 @@
         padding: 20px;
       }
       .container {
-        max-width: 1400px;
+        max-width: none;
+        width: 100%;
         margin: 0 auto;
         background-color: #fff;
         border: 1px solid #ccc;
@@ -66,6 +67,8 @@
       /* --- スプレッドシート テーブルスタイル (行列入替) --- */
       .spreadsheet {
         width: 100%;
+        max-width: none;
+        table-layout: fixed;
         border-collapse: collapse;
         overflow-x: auto;
         display: block;
@@ -79,6 +82,39 @@
         text-align: right; /* 数値は右寄せ */
       }
 
+      /* 日付カラム（80px固定幅） */
+      .date-column {
+        width: 80px;
+        min-width: 80px;
+        max-width: 80px;
+        text-align: center;
+        font-size: 12px;
+        padding: 8px 4px;
+      }
+
+      .date-column br {
+        line-height: 1.2;
+      }
+
+      .day-of-week {
+        font-size: 10px;
+        color: #6c757d;
+        font-weight: normal;
+      }
+
+      /* データセルとプレースホルダー */
+      .data-cell:empty::before,
+      .data-cell[data-value='']:before {
+        content: '-';
+        color: #ccc;
+        font-style: italic;
+      }
+
+      .loading .data-cell::before {
+        content: '読み込み中...';
+        color: #666;
+      }
+
       /* ヘッダー行 (横列) */
       .spreadsheet thead th {
         text-align: center;
@@ -90,7 +126,7 @@
         z-index: 10;
       }
 
-      /* ヘッダー列 (縦列) */
+      /* ヘッダー列 (縦列) - スティッキーカラム */
       .spreadsheet tbody th {
         text-align: left;
         background-color: #f4f4f4;
@@ -100,6 +136,22 @@
         left: 0;
         z-index: 5;
         min-width: 180px; /* 項目名は長め */
+        box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+      }
+
+      /* スティッキーカラム共通スタイル */
+      .sticky-column {
+        position: sticky;
+        left: 0;
+        background-color: #f4f4f4;
+        z-index: 10;
+        min-width: 180px;
+        box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+      }
+
+      /* スクロール時の影効果強化 */
+      .sticky-column.scrolled {
+        box-shadow: 4px 0 8px rgba(0, 0, 0, 0.15);
       }
 
       /* 投稿文の行 */
@@ -153,7 +205,7 @@
         background-color: #fce8e6 !important;
       } /* 3.0倍（赤） */
 
-      /* レポートや設定シートのスタイル (変更なし) */
+      /* レポートや設定シートのスタイル (新仕様対応) */
       .report-grid,
       .settings-grid {
         display: grid;
@@ -173,6 +225,102 @@
         border-bottom: 2px solid #1a73e8;
         padding-bottom: 8px;
         color: #1a73e8;
+      }
+
+      /* ボタンスタイル (新仕様) */
+      .btn-primary, .btn-secondary, .btn-danger {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-right: 10px;
+        margin-bottom: 5px;
+      }
+
+      .btn-primary {
+        background: #1976d2;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #1565c0;
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: #5a6268;
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #c82333;
+      }
+
+      /* データ状態インジケーター */
+      .data-complete {
+        background-color: #d4edda;
+        border-left: 4px solid #28a745;
+        color: #155724;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+
+      .data-incomplete {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+        color: #856404;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+
+      .data-insufficient {
+        background-color: #f8d7da;
+        border-left: 4px solid #dc3545;
+        color: #721c24;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+
+      /* システム状態表示 */
+      .system-ready {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+
+      .system-not-ready {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+
+      /* 注意書きスタイル */
+      .note {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 10px;
+        padding: 8px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border-left: 3px solid #17a2b8;
       }
       .report-card li {
         font-size: 14px;
@@ -196,6 +344,122 @@
         font-size: 24px;
         font-weight: bold;
         color: #1a73e8;
+      }
+
+      /* 投稿文省略表示とモーダル */
+      .truncated-text {
+        cursor: pointer;
+        color: #1976d2;
+        text-decoration: none;
+      }
+
+      .truncated-text:hover {
+        text-decoration: underline;
+      }
+
+      .post-text-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1000;
+      }
+
+      .modal-overlay {
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 8px;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        margin: 20px;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .modal-body {
+        padding: 20px;
+        line-height: 1.6;
+      }
+
+      .close-btn {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .close-btn:hover {
+        color: #333;
+        background-color: #f5f5f5;
+        border-radius: 50%;
+      }
+
+      /* フォロワー数KPI表示 */
+      .follower-kpi-section {
+        margin-bottom: 20px;
+        padding: 15px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 8px;
+        color: white;
+      }
+
+      .kpi-card {
+        text-align: center;
+      }
+
+      .kpi-card h3 {
+        margin: 0 0 10px 0;
+        font-size: 16px;
+        font-weight: 500;
+      }
+
+      .kpi-value {
+        font-size: 36px;
+        font-weight: bold;
+        margin: 10px 0;
+      }
+
+      .kpi-timestamp {
+        font-size: 12px;
+        opacity: 0.8;
+      }
+
+      /* レスポンシブ対応 */
+      @media (max-width: 768px) {
+        body {
+          padding: 10px;
+        }
+        .container {
+          border-radius: 4px;
+        }
+        .modal-content {
+          max-width: 90vw;
+          margin: 10px;
+        }
       }
     </style>
   </head>
@@ -226,235 +490,311 @@
 
       <!-- 2. データ（メイン）シート (変更あり) -->
       <div id="data" class="sheet-content active">
+        <!-- フォロワー数KPI表示 -->
+        <div class="follower-kpi-section">
+          <div class="kpi-card">
+            <h3>現在のフォロワー数</h3>
+            <div class="kpi-value" id="current-followers">-</div>
+            <div class="kpi-timestamp" id="follower-timestamp">-</div>
+          </div>
+        </div>
+
+        <!-- 投稿日時とデータ操作セクション -->
+        <div
+          class="data-controls-section"
+          style="
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+          "
+        >
+          <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap">
+            <div style="flex: 1; min-width: 200px">
+              <label
+                for="post-datetime-input"
+                style="display: block; margin-bottom: 5px; font-weight: 500; color: #495057"
+                >📅 投稿日時</label
+              >
+              <input
+                type="datetime-local"
+                id="post-datetime-input"
+                style="
+                  width: 100%;
+                  padding: 8px 12px;
+                  border: 1px solid #ced4da;
+                  border-radius: 4px;
+                  font-size: 14px;
+                "
+              />
+            </div>
+            <div style="flex: 0 0 auto">
+              <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #495057"
+                >📊 データ操作</label
+              >
+              <div style="display: flex; gap: 10px">
+                <button
+                  id="fetch-and-save-btn"
+                  onclick="fetchAndSaveData()"
+                  style="
+                    background: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                  "
+                >
+                  📥 取得・保存
+                </button>
+                <button
+                  id="load-timeseries-btn"
+                  onclick="loadTimeSeriesData()"
+                  style="
+                    background: #007bff;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                  "
+                >
+                  📈 時系列表示
+                </button>
+                <button
+                  id="show-stats-btn"
+                  onclick="showSpreadsheetStats()"
+                  style="
+                    background: #6c757d;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                  "
+                >
+                  📊 統計情報
+                </button>
+              </div>
+            </div>
+          </div>
+          <div
+            id="data-operation-status"
+            style="margin-top: 10px; padding: 8px; border-radius: 4px; display: none"
+          >
+            <span id="data-operation-message">待機中...</span>
+          </div>
+        </div>
+
         <p style="font-size: 12px; color: #555">
           ※ 投稿12時間後に「無料版データ」が自動記録されます。<br />
           ※
           プレミアム版では、「時系列データ」が自動更新され、平均値を超えたセルが自動で色付けされます。
         </p>
         <div style="width: 100%; overflow-x: auto">
-          <table class="spreadsheet">
+          <table class="spreadsheet" id="main-data-table">
             <thead>
-              <tr>
+              <tr id="table-header-row">
                 <th>項目 / 投稿日時</th>
-                <!-- 投稿を古い順（左）から並べる -->
-                <th>11/10<br />12:00</th>
-                <th>11/11<br />20:00</th>
-                <th>11/12<br />18:30</th>
-                <!-- 以下、投稿が自動で横に追加される -->
+                <!-- スプレッドシートから取得したデータで動的に生成 -->
               </tr>
             </thead>
-            <tbody>
+            <tbody id="table-body">
               <!-- 共通データ -->
               <tr class="post-text-row">
                 <th>投稿文</th>
-                <td>
-                  新しいPCのセットアップ完了！<br />これで動画編集も快適になりそう。[画像あり]
-                </td>
-                <td>今日は一日中コーディングでした。<br />疲れた... #GAS #開発</td>
-                <td>
-                  【速報】Threads分析ツール、ついに完成！<br />これさえあれば分析が捗るはず。<br />#Threads
-                  #分析
-                </td>
+                <!-- スプレッドシートから取得したデータで動的に生成 -->
               </tr>
               <tr>
                 <th>文字数</th>
-                <td>50</td>
-                <td>35</td>
-                <td>75</td>
+                <!-- スプレッドシートから取得したデータで動的に生成 -->
               </tr>
               <tr>
                 <th>タイプ</th>
-                <td>画像</td>
-                <td>テキスト</td>
-                <td>テキスト</td>
+                <!-- スプレッドシートから取得したデータで動的に生成 -->
               </tr>
 
               <!-- NEW: 12時間後 (無料版) ヘッダー -->
               <tr class="time-header-row">
-                <th colspan="4">【12時間後】(無料版)</th>
+                <th id="free-data-header" colspan="1">【12時間後】(無料版)</th>
               </tr>
               <tr>
                 <th>インプ(12h)</th>
-                <td class="highlight-blue">1,600</td>
-                <!-- 1.5倍超え (青) -->
-                <td>850</td>
-                <td class="highlight-red">3,500</td>
-                <!-- 3.0倍超え (赤) -->
+                <!-- スプレッドシートから取得したデータで動的に生成 -->
               </tr>
               <tr>
                 <th>いいね(12h)</th>
-                <td class="highlight-blue">120</td>
-                <!-- 1.5倍超え (青) -->
-                <td>45</td>
-                <td class="highlight-yellow">210</td>
-                <!-- 2.0倍超え (黄) -->
+                <!-- スプレッドシートから取得したデータで動的に生成 -->
               </tr>
               <tr>
                 <th>再投稿/引用(12h)</th>
-                <td>8</td>
-                <td>2</td>
-                <td>15</td>
+                <!-- スプレッドシートから取得したデータで動的に生成 -->
               </tr>
               <tr>
                 <th>リプライ(12h)</th>
-                <td>10</td>
-                <td>5</td>
-                <td>25</td>
+                <!-- スプレッドシートから取得したデータで動的に生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr>
                 <th>Eng総数(12h)</th>
-                <td>138</td>
-                <td>52</td>
-                <td>250</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr>
                 <th>Eng率(12h)</th>
-                <td>8.63%</td>
-                <td>6.12%</td>
-                <td>7.14%</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr>
                 <th>総フォロワー(12h)</th>
-                <td>10,234</td>
-                <td>10,240</td>
-                <td>10,255</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
 
               <!-- NEW: 24時間後 (プレミアム) ヘッダー -->
               <tr class="spacer-row">
-                <td colspan="4"></td>
+                <td colspan="1"></td>
               </tr>
               <tr class="time-header-row premium-row">
-                <th colspan="4">【24時間後】(プレミアム)</th>
+                <th colspan="1">【24時間後】(プレミアム)</th>
               </tr>
               <tr class="premium-row">
                 <th>インプ(24h)</th>
-                <td>2,200</td>
-                <td>860</td>
-                <td>4,200</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>いいね(24h)</th>
-                <td>130</td>
-                <td>46</td>
-                <td>220</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>再投稿/引用(24h)</th>
-                <td>10</td>
-                <td>2</td>
-                <td>16</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>リプライ(24h)</th>
-                <td>12</td>
-                <td>5</td>
-                <td>26</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>Eng総数(24h)</th>
-                <td>152</td>
-                <td>53</td>
-                <td>262</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>Eng率(24h)</th>
-                <td>6.91%</td>
-                <td>6.16%</td>
-                <td>6.24%</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
 
               <!-- NEW: 72時間後 (プレミアム) ヘッダー -->
               <tr class="spacer-row">
-                <td colspan="4"></td>
+                <td colspan="1"></td>
               </tr>
               <tr class="time-header-row premium-row">
-                <th colspan="4">【72時間後】(プレミアム)</th>
+                <th colspan="1">【72時間後】(プレミアム)</th>
               </tr>
               <tr class="premium-row">
                 <th>インプ(72h)</th>
-                <td>2,500</td>
-                <td>860</td>
-                <td>4,500</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>いいね(72h)</th>
-                <td>135</td>
-                <td>46</td>
-                <td>230</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>再投稿/引用(72h)</th>
-                <td>10</td>
-                <td>2</td>
-                <td>17</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>リプライ(72h)</th>
-                <td>13</td>
-                <td>5</td>
-                <td>27</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>Eng総数(72h)</th>
-                <td>158</td>
-                <td>53</td>
-                <td>274</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>Eng率(72h)</th>
-                <td>6.32%</td>
-                <td>6.16%</td>
-                <td>6.09%</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
 
               <!-- NEW: 7日後 (プレミアム) ヘッダー -->
               <tr class="spacer-row">
-                <td colspan="4"></td>
+                <td colspan="1"></td>
               </tr>
               <tr class="time-header-row premium-row">
-                <th colspan="4">【7日後】(プレミアム)</th>
+                <th colspan="1">【7日後】(プレミアム)</th>
               </tr>
               <tr class="premium-row">
                 <th>インプ(7d)</th>
-                <td>2,600</td>
-                <td>860</td>
-                <td>4,550</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>いいね(7d)</th>
-                <td>138</td>
-                <td>46</td>
-                <td>232</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>再投稿/引用(7d)</th>
-                <td>10</td>
-                <td>2</td>
-                <td>17</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>リプライ(7d)</th>
-                <td>13</td>
-                <td>5</td>
-                <td>27</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>Eng総数(7d)</th>
-                <td>161</td>
-                <td>53</td>
-                <td>276</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
               <tr class="premium-row">
                 <th>Eng率(7d)</th>
-                <td>6.19%</td>
-                <td>6.16%</td>
-                <td>6.07%</td>
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
+                                <!-- データセルは動的生成 -->
               </tr>
 
               <!-- NEW: 共通データ (最後) -->
               <tr class="spacer-row">
-                <td colspan="4"></td>
+                <td colspan="1"></td>
               </tr>
             </tbody>
           </table>
@@ -495,12 +835,51 @@
         </div>
       </div>
 
-      <!-- 4. 設定シート (変更なし) -->
+      <!-- 4. 設定シート (新仕様対応) -->
       <div id="settings" class="sheet-content">
-        <!-- (内容は変更なし) -->
+        <h2>⚙️ 設定</h2>
+
+        <!-- システム状態表示 -->
+        <div class="settings-card">
+          <h3>📊 システム状態</h3>
+          <div id="system-status-indicator">
+            <span id="system-status-text">読み込み中...</span>
+          </div>
+          <div style="margin-top: 10px">
+            <button onclick="checkSystemStatus()" class="btn-secondary">状態を更新</button>
+          </div>
+        </div>
+
         <div class="settings-grid">
           <div class="settings-card">
-            <h3>⚙️ 基本設定</h3>
+            <h3>📊 スプレッドシート設定</h3>
+            <div id="spreadsheet-config-section">
+              <p>データ保存用のスプレッドシートIDを設定してください</p>
+              <div id="spreadsheet-id-status" style="margin-bottom: 10px">
+                <span id="spreadsheet-id-indicator" style="color: #666">読み込み中...</span>
+              </div>
+              <div id="spreadsheet-id-form">
+                <input
+                  type="text"
+                  id="spreadsheet-id-input"
+                  placeholder="スプレッドシートIDを入力してください"
+                  style="width: 95%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px"
+                />
+                <button onclick="saveSpreadsheetId()" class="btn-primary">保存</button>
+              </div>
+              <div id="spreadsheet-actions" style="margin-top: 10px">
+                <button onclick="testSpreadsheetAccess()" class="btn-secondary">接続テスト</button>
+                <button onclick="initializeDatabase()" class="btn-secondary">データベース初期化</button>
+              </div>
+              <p class="note">
+                ※スプレッドシートには編集権限が必要です<br>
+                ※初回設定時は「データベース初期化」でデータ構造を自動作成します
+              </p>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <h3>🔑 API設定</h3>
             <div id="api-key-section">
               <p>Threads API アクセストークン</p>
               <div id="api-key-status" style="margin-bottom: 10px">
@@ -566,13 +945,13 @@
           </div>
 
           <div class="settings-card">
-            <h3>🧪 データ取得テスト</h3>
+            <h3>🧪 手動データ取得</h3>
             <div id="api-test-section">
-              <p>Threads APIから実際のデータを取得してテーブルに反映します</p>
+              <p>Threads APIから実際のデータを手動で取得してスプレッドシートに保存します</p>
               <div id="test-controls" style="margin: 15px 0">
                 <button
-                  id="test-api-btn"
-                  onclick="testThreadsApi()"
+                  id="manual-fetch-btn"
+                  onclick="manualFetchAndSave()"
                   style="
                     background: #1976d2;
                     color: white;
@@ -581,9 +960,25 @@
                     border-radius: 4px;
                     cursor: pointer;
                     margin-right: 10px;
+                    font-weight: bold;
                   "
                 >
-                  📊 データ取得テスト
+                  🚀 データ取得・保存を実行
+                </button>
+                <button
+                  id="test-api-btn"
+                  onclick="testThreadsApi()"
+                  style="
+                    background: #4caf50;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-right: 10px;
+                  "
+                >
+                  📊 API接続テスト（表示のみ）
                 </button>
                 <button
                   id="refresh-data-btn"
@@ -653,27 +1048,50 @@
                 </button>
               </div>
             </div>
-          </div>
-          <div class="report-card">
-            <h3>🎨 自動ハイライト設定 (プレミアム)</h3>
-            <p>当月の平均値と比較して、指定倍率を超えたら色を変更します。</p>
-            <ul>
-              <li>
-                <input type="number" value="1.5" style="width: 50px" /> 倍を超えたら →
-                <span style="background: #e8f0fe; padding: 3px 8px">青色</span>
-              </li>
-              <li>
-                <input type="number" value="2.0" style="width: 50px" /> 倍を超えたら →
-                <span style="background: #fff7e0; padding: 3px 8px">黄色</span>
-              </li>
-              <li>
-                <input type="number" value="3.0" style="width: 50px" /> 倍を超えたら →
-                <span style="background: #fce8e6; padding: 3px 8px">赤色</span>
-              </li>
-            </ul>
-            <p style="font-size: 12px">
-              （※このUIイメージです。実際のツールでは設定シート上のセルで管理します）
-            </p>
+
+            <!-- スプレッドシートID設定は上部に統合済み -->
+          <div class="settings-card">
+            <h3>⏰ 自動実行設定</h3>
+            <div id="batch-config-section">
+              <p>1時間毎の自動データ収集を設定できます。</p>
+              <div id="batch-status" style="margin-bottom: 10px">
+                <span id="batch-status-indicator" style="color: #666">読み込み中...</span>
+              </div>
+              <div style="margin-top: 10px">
+                <button onclick="setupBatchTrigger()" class="btn-primary">自動実行を開始</button>
+                <button onclick="stopBatchTrigger()" class="btn-danger">自動実行を停止</button>
+              </div>
+              <div style="margin-top: 10px">
+                <button onclick="refreshBatchStatus()" class="btn-secondary">実行状況を更新</button>
+              </div>
+              
+              <!-- バッチ実行統計 -->
+              <div id="batch-statistics" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; display: none;">
+                <h4 style="margin-top: 0;">📊 実行統計 (過去30日)</h4>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; font-size: 14px;">
+                  <div><strong>総実行回数:</strong> <span id="stat-total-executions">-</span></div>
+                  <div><strong>成功回数:</strong> <span id="stat-successful-executions" style="color: #28a745;">-</span></div>
+                  <div><strong>失敗回数:</strong> <span id="stat-failed-executions" style="color: #dc3545;">-</span></div>
+                  <div><strong>エラー率:</strong> <span id="stat-error-rate">-</span>%</div>
+                  <div><strong>平均処理件数:</strong> <span id="stat-avg-posts">-</span>件</div>
+                  <div><strong>平均実行時間:</strong> <span id="stat-avg-time">-</span>ms</div>
+                  <div><strong>最終実行:</strong> <span id="stat-last-execution">-</span></div>
+                  <div><strong>システム状態:</strong> <span id="stat-health-status">-</span></div>
+                </div>
+              </div>
+              
+              <!-- 最近のログ -->
+              <div id="batch-recent-logs" style="margin-top: 20px; display: none;">
+                <h4>📋 最近の実行ログ (最新10件)</h4>
+                <div id="batch-logs-container" style="max-height: 300px; overflow-y: auto; background: #fff; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
+                  <!-- ログがここに表示されます -->
+                </div>
+              </div>
+              
+              <p class="note">
+                ※自動実行にはスプレッドシートIDとAPIキーの設定が必要です
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -823,9 +1241,44 @@
         logContainer.innerHTML = '<div class="log-entry">ログクリア完了</div>';
       }
 
-      // APIテスト機能
+      // 手動データ取得・保存機能
+      function manualFetchAndSave() {
+        addDebugLog('🚀 手動データ取得・保存開始', 'info');
+        showTestStatus('loading', '🔄 実行中...');
+
+        // ボタンを無効化
+        document.getElementById('manual-fetch-btn').disabled = true;
+        document.getElementById('manual-fetch-btn').textContent = '⏳ 実行中...';
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            document.getElementById('manual-fetch-btn').disabled = false;
+            document.getElementById('manual-fetch-btn').textContent = '🚀 データ取得・保存を実行';
+
+            if (result.success) {
+              showTestStatus('success', '✅ データ取得・保存成功！ ' + (result.count || 0) + '件保存しました');
+              addDebugLog('✅ 手動実行成功: ' + (result.count || 0) + '件', 'success');
+              
+              // テーブルをリフレッシュ
+              refreshTableData();
+            } else {
+              showTestStatus('error', '❌ 失敗: ' + result.message);
+              addDebugLog('❌ 手動実行失敗: ' + result.message, 'error');
+            }
+          })
+          .withFailureHandler(function (error) {
+            document.getElementById('manual-fetch-btn').disabled = false;
+            document.getElementById('manual-fetch-btn').textContent = '🚀 データ取得・保存を実行';
+            
+            showTestStatus('error', '❌ エラー: ' + error.message);
+            addDebugLog('❌ 手動実行エラー: ' + error.message, 'error');
+          })
+          .hourlyBatchDataCollection();
+      }
+
+      // APIテスト機能（接続確認のみ、保存しない）
       function testThreadsApi() {
-        addDebugLog('🔄 APIテスト開始', 'info');
+        addDebugLog('🔄 API接続テスト開始', 'info');
         showTestStatus('loading', '🔄 APIキーを確認中...');
 
         google.script.run
@@ -941,11 +1394,18 @@
           var posts = data.posts.slice(0, 3);
 
           // 投稿文の更新
-          var postTextCells = document.querySelectorAll('.post-text-row td');
+          var postTextCells = document.querySelectorAll('.post-text-row td.data-cell');
           posts.forEach(function (post, index) {
-            if (postTextCells[index]) {
-              postTextCells[index].innerHTML =
-                post.text.substring(0, 100) + (post.text.length > 100 ? '...' : '');
+            if (postTextCells[index] && post.text) {
+              var fullText = post.text;
+              var truncatedText = fullText.length > 25 ? fullText.substring(0, 25) + '...' : fullText;
+
+              postTextCells[index].setAttribute('data-full-text', fullText);
+              postTextCells[index].innerHTML = `
+                <span class="truncated-text" onclick="showPostTextModal('${fullText.replace(/'/g, "\\'")}')">
+                  ${truncatedText}
+                </span>
+              `;
             }
           });
 
@@ -993,10 +1453,997 @@
         }
       }
 
-      // ページ読み込み時にAPIキー状態を確認
+      // 投稿文省略表示機能
+      function truncatePostText(text, maxLength = 25) {
+        if (!text || text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+      }
+
+      function updatePostTextCells() {
+        const postTextCells = document.querySelectorAll('.post-text-row td');
+        postTextCells.forEach(cell => {
+          const fullText = cell.getAttribute('data-full-text') || cell.textContent;
+          if (!fullText || fullText.trim() === '' || fullText === '-') return;
+
+          cell.setAttribute('data-full-text', fullText);
+          const truncatedText = truncatePostText(fullText);
+
+          cell.innerHTML = `
+            <span class="truncated-text" onclick="showPostTextModal('${fullText.replace(/'/g, "\\'")}')">
+              ${truncatedText}
+            </span>
+          `;
+        });
+      }
+
+      // モーダル表示機能
+      function showPostTextModal(fullText) {
+        try {
+          if (!fullText) {
+            console.warn('投稿文が空です');
+            return;
+          }
+          
+          // 既存のモーダルを削除
+          closePostTextModal();
+          
+          const modal = document.createElement('div');
+          modal.className = 'post-text-modal';
+          
+          // HTMLエスケープ
+          const escapedText = String(fullText)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+          
+          modal.innerHTML = `
+            <div class="modal-overlay" onclick="closePostTextModal()">
+              <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                  <h3>投稿文</h3>
+                  <button class="close-btn" onclick="closePostTextModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                  <p>${escapedText}</p>
+                </div>
+              </div>
+            </div>
+          `;
+          
+          if (document.body) {
+            document.body.appendChild(modal);
+          } else {
+            console.error('document.body が null です');
+            return;
+          }
+
+          // ESCキーで閉じる
+          const escapeHandler = function (e) {
+            if (e.key === 'Escape') {
+              closePostTextModal();
+              document.removeEventListener('keydown', escapeHandler);
+            }
+          };
+          document.addEventListener('keydown', escapeHandler);
+          
+        } catch (error) {
+          console.error('モーダル表示エラー:', error);
+        }
+      }
+
+      function closePostTextModal() {
+        try {
+          const modals = document.querySelectorAll('.post-text-modal');
+          modals.forEach(function (modal) {
+            if (modal && modal.parentNode) {
+              modal.parentNode.removeChild(modal);
+            }
+          });
+        } catch (error) {
+          console.error('モーダル削除エラー:', error);
+        }
+      }
+
+      // データクリア・ローディング状態管理
+      function clearSampleData() {
+        const dataCells = document.querySelectorAll('.data-cell');
+        dataCells.forEach(cell => {
+          cell.textContent = '';
+          cell.setAttribute('data-value', '');
+          // 投稿文セルの場合は、data-full-text属性もクリア
+          if (cell.getAttribute('data-metric') === 'post_text') {
+            cell.removeAttribute('data-full-text');
+            cell.innerHTML = '';
+          }
+        });
+      }
+
+      function showLoadingState() {
+        const spreadsheet = document.querySelector('.spreadsheet');
+        if (spreadsheet) {
+          spreadsheet.classList.add('loading');
+        }
+      }
+
+      function hideLoadingState() {
+        const spreadsheet = document.querySelector('.spreadsheet');
+        if (spreadsheet) {
+          spreadsheet.classList.remove('loading');
+        }
+      }
+
+      // フォロワー数表示更新
+      function updateFollowerDisplay(count, timestamp) {
+        const followersElement = document.getElementById('current-followers');
+        const timestampElement = document.getElementById('follower-timestamp');
+
+        if (followersElement) {
+          followersElement.textContent = count ? count.toLocaleString() + ' 人' : '-';
+        }
+
+        if (timestampElement && timestamp) {
+          timestampElement.textContent = '最終更新: ' + new Date(timestamp).toLocaleString();
+        }
+      }
+
+      // 日付カラム設定
+      function setupDateColumns() {
+        const dateHeaders = document.querySelectorAll('th:not(.sticky-column)');
+        dateHeaders.forEach(header => {
+          // 最初のカラム（項目名）以外を日付カラムとして設定
+          if (header.cellIndex > 0) {
+            header.classList.add('date-column');
+          }
+        });
+      }
+
+      // スティッキーカラム初期化
+      function setupStickyColumns() {
+        const firstColumns = document.querySelectorAll('th:first-child, td:first-child');
+        firstColumns.forEach(col => {
+          col.classList.add('sticky-column');
+        });
+      }
+
+      // スクロール同期機能
+      function setupScrollSync() {
+        const container =
+          document.querySelector('.spreadsheet-container') ||
+          document.querySelector('div[style*="overflow-x: auto"]');
+        if (!container) return;
+
+        const stickyColumns = document.querySelectorAll('.sticky-column');
+
+        container.addEventListener('scroll', function () {
+          const scrollLeft = container.scrollLeft;
+
+          // スティッキーカラムの影の調整
+          stickyColumns.forEach(col => {
+            if (scrollLeft > 0) {
+              col.classList.add('scrolled');
+            } else {
+              col.classList.remove('scrolled');
+            }
+          });
+        });
+      }
+
+      // スプレッドシートID管理関数
+      function checkSpreadsheetIdStatus() {
+        google.script.run
+          .withSuccessHandler(function (hasSpreadsheetId) {
+            var indicator = document.getElementById('spreadsheet-id-indicator');
+            var editBtn = document.getElementById('edit-spreadsheet-id-btn');
+            var deleteBtn = document.getElementById('delete-spreadsheet-id-btn');
+            var testBtn = document.getElementById('test-spreadsheet-btn');
+
+            if (hasSpreadsheetId) {
+              indicator.textContent = '✅ スプレッドシートIDが設定されています';
+              indicator.style.color = '#2e7d32';
+              editBtn.style.display = 'inline-block';
+              deleteBtn.style.display = 'inline-block';
+              testBtn.style.display = 'inline-block';
+            } else {
+              indicator.textContent = '❌ スプレッドシートIDが設定されていません';
+              indicator.style.color = '#d32f2f';
+              editBtn.style.display = 'inline-block';
+              deleteBtn.style.display = 'none';
+              testBtn.style.display = 'none';
+              showSpreadsheetIdForm(); // 未設定の場合は入力フォームを表示
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('スプレッドシートID状態確認エラー:', error);
+            document.getElementById('spreadsheet-id-indicator').textContent =
+              'エラー: ' + error.message;
+          })
+          .hasSpreadsheetId();
+      }
+
+      function showSpreadsheetIdForm() {
+        document.getElementById('spreadsheet-id-form').style.display = 'block';
+        document.getElementById('spreadsheet-id-input').focus();
+      }
+
+      function hideSpreadsheetIdForm() {
+        document.getElementById('spreadsheet-id-form').style.display = 'none';
+        document.getElementById('spreadsheet-id-input').value = '';
+      }
+
+      function saveSpreadsheetId() {
+        var spreadsheetId = document.getElementById('spreadsheet-id-input').value.trim();
+
+        if (!spreadsheetId) {
+          alert('スプレッドシートIDを入力してください。');
+          return;
+        }
+
+        // スプレッドシートIDの形式チェック（簡易）
+        if (spreadsheetId.length < 20 || !/^[a-zA-Z0-9_-]+$/.test(spreadsheetId)) {
+          alert('無効なスプレッドシートIDです。正しい形式で入力してください。');
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              alert('スプレッドシートIDを保存しました。');
+              hideSpreadsheetIdForm();
+              checkSpreadsheetIdStatus();
+            } else {
+              alert('保存に失敗しました: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('スプレッドシートID保存エラー:', error);
+            alert('保存中にエラーが発生しました: ' + error.message);
+          })
+          .saveSpreadsheetId(spreadsheetId);
+      }
+
+      function deleteSpreadsheetId() {
+        if (!confirm('スプレッドシートIDを削除しますか？')) {
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              alert('スプレッドシートIDを削除しました。');
+              checkSpreadsheetIdStatus();
+            } else {
+              alert('削除に失敗しました: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('スプレッドシートID削除エラー:', error);
+            alert('削除中にエラーが発生しました: ' + error.message);
+          })
+          .deleteSpreadsheetId();
+      }
+
+      function testSpreadsheetAccess() {
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              alert(
+                '✅ スプレッドシートへの接続に成功しました！\n\nスプレッドシート名: ' +
+                  result.data.name
+              );
+            } else {
+              alert('❌ スプレッドシートへの接続に失敗しました:\n' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('スプレッドシート接続テストエラー:', error);
+            alert('接続テスト中にエラーが発生しました: ' + error.message);
+          })
+          .testSpreadsheetAccess();
+      }
+
+      // スプレッドシート連携関数
+      function showDataOperationStatus(type, message) {
+        var statusDiv = document.getElementById('data-operation-status');
+        var messageSpan = document.getElementById('data-operation-message');
+
+        statusDiv.style.display = 'block';
+        messageSpan.textContent = message;
+
+        // スタイル設定
+        statusDiv.className = '';
+        if (type === 'loading') {
+          statusDiv.style.background = '#e3f2fd';
+          statusDiv.style.color = '#1976d2';
+          statusDiv.style.border = '1px solid #bbdefb';
+        } else if (type === 'success') {
+          statusDiv.style.background = '#e8f5e8';
+          statusDiv.style.color = '#2e7d32';
+          statusDiv.style.border = '1px solid #c8e6c9';
+        } else if (type === 'error') {
+          statusDiv.style.background = '#ffebee';
+          statusDiv.style.color = '#c62828';
+          statusDiv.style.border = '1px solid #ffcdd2';
+        }
+      }
+
+      function fetchAndSaveData() {
+        // APIキーとスプレッドシートIDの確認
+        if (!document.getElementById('api-key-indicator').textContent.includes('✅')) {
+          alert('APIキーが設定されていません。設定タブでAPIキーを設定してください。');
+          return;
+        }
+
+        if (!document.getElementById('spreadsheet-id-indicator').textContent.includes('✅')) {
+          alert(
+            'スプレッドシートIDが設定されていません。設定タブでスプレッドシートIDを設定してください。'
+          );
+          return;
+        }
+
+        showDataOperationStatus('loading', '📡 Threads APIからデータを取得中...');
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              showDataOperationStatus(
+                'success',
+                `✅ ${result.data.postsProcessed}件のデータを保存しました！`
+              );
+
+              // 5秒後にステータスを非表示
+              setTimeout(function () {
+                document.getElementById('data-operation-status').style.display = 'none';
+              }, 5000);
+            } else {
+              showDataOperationStatus('error', '❌ データ取得・保存に失敗: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('データ取得・保存エラー:', error);
+            showDataOperationStatus('error', '❌ エラーが発生しました: ' + error.message);
+          })
+          .fetchAndSaveToSpreadsheet();
+      }
+
+      function loadTimeSeriesData() {
+        var postDateInput = document.getElementById('post-datetime-input');
+        var postDate = postDateInput.value;
+
+        if (!postDate) {
+          alert('投稿日時を選択してください。');
+          postDateInput.focus();
+          return;
+        }
+
+        if (!document.getElementById('spreadsheet-id-indicator').textContent.includes('✅')) {
+          alert(
+            'スプレッドシートIDが設定されていません。設定タブでスプレッドシートIDを設定してください。'
+          );
+          return;
+        }
+
+        showDataOperationStatus('loading', '📈 時系列データを読み込み中...');
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              showDataOperationStatus(
+                'success',
+                `✅ ${result.data.length}件の時系列データを取得しました`
+              );
+
+              // テーブルにデータを表示
+              displayTimeSeriesData(result.data);
+
+              // 5秒後にステータスを非表示
+              setTimeout(function () {
+                document.getElementById('data-operation-status').style.display = 'none';
+              }, 5000);
+            } else {
+              showDataOperationStatus('error', '❌ 時系列データ取得に失敗: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('時系列データ取得エラー:', error);
+            showDataOperationStatus('error', '❌ エラーが発生しました: ' + error.message);
+          })
+          .getTimeSeriesData(postDate, 12);
+      }
+
+      function showSpreadsheetStats() {
+        if (!document.getElementById('spreadsheet-id-indicator').textContent.includes('✅')) {
+          alert(
+            'スプレッドシートIDが設定されていません。設定タブでスプレッドシートIDを設定してください。'
+          );
+          return;
+        }
+
+        showDataOperationStatus('loading', '📊 統計情報を取得中...');
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              var stats = result.data;
+              var message =
+                `📊 統計情報\n` +
+                `・総レコード数: ${stats.totalRows}件\n` +
+                `・最終更新: ${stats.lastUpdate ? new Date(stats.lastUpdate).toLocaleString() : '未更新'}\n` +
+                `・シート名: ${stats.sheetName}`;
+
+              alert(message);
+              showDataOperationStatus('success', '✅ 統計情報を取得しました');
+
+              // 3秒後にステータスを非表示
+              setTimeout(function () {
+                document.getElementById('data-operation-status').style.display = 'none';
+              }, 3000);
+            } else {
+              showDataOperationStatus('error', '❌ 統計情報取得に失敗: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('統計情報取得エラー:', error);
+            showDataOperationStatus('error', '❌ エラーが発生しました: ' + error.message);
+          })
+          .getSpreadsheetStatistics();
+      }
+
+      function displayTimeSeriesData(timeSeriesData) {
+        // 時系列データをテーブルに表示する処理
+        // 実装は複雑になるため、ここでは基本的な表示のみ
+        console.log('時系列データ:', timeSeriesData);
+
+        if (timeSeriesData.length === 0) {
+          alert('指定した投稿日時のデータが見つかりませんでした。');
+          return;
+        }
+
+        // 最新のデータを取得
+        var latestData = timeSeriesData[timeSeriesData.length - 1];
+
+        // フォロワー数を更新
+        updateFollowerDisplay(latestData.followerCount, latestData.fetchTime);
+
+        // 投稿文をテーブルに表示
+        var postTextCells = document.querySelectorAll('.post-text-row td.data-cell');
+        if (postTextCells.length > 0 && latestData.text) {
+          var fullText = latestData.text;
+          var truncatedText = fullText.length > 25 ? fullText.substring(0, 25) + '...' : fullText;
+
+          postTextCells[0].setAttribute('data-full-text', fullText);
+          postTextCells[0].innerHTML = `
+            <span class="truncated-text" onclick="showPostTextModal('${fullText.replace(/'/g, "\\'")}')">
+              ${truncatedText}
+            </span>
+          `;
+        }
+
+        alert(
+          `最新データを表示しました:\n` +
+            `投稿文: ${latestData.text.substring(0, 50)}...\n` +
+            `インプレッション: ${latestData.impressions}\n` +
+            `いいね: ${latestData.likes}\n` +
+            `エンゲージメント率: ${latestData.engagementRate}%`
+        );
+      }
+
+      // ページ読み込み時にシステム状態を確認
       window.onload = function () {
-        checkApiKeyStatus();
+        initializeApplication();
+        setupStickyColumns();
+        setupDateColumns();
+        setupScrollSync();
+        
+        // スプレッドシートからデータを自動ロード
+        loadInitialDataFromSpreadsheet();
+
+        // 現在時刻を投稿日時入力フィールドのデフォルト値に設定
+        var now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('post-datetime-input').value = now.toISOString().slice(0, 16);
       };
+
+      /**
+       * アプリケーション初期化
+       */
+      function initializeApplication() {
+        checkSystemStatus();
+        checkApiKeyStatus();
+        checkSpreadsheetIdStatus();
+        checkBatchStatus();
+      }
+
+      /**
+       * スプレッドシートから初期データをロード
+       */
+      function loadInitialDataFromSpreadsheet() {
+        console.log('📥 スプレッドシートから初期データをロード開始');
+        
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success && result.data && result.data.length > 0) {
+              console.log('✅ データ取得成功:', result.data.length + '件');
+              buildTableFromSpreadsheetData(result.data);
+              // updatePostTextCells()はbuildTableFromSpreadsheetData内で既にセル生成時に処理済み
+            } else {
+              console.log('ℹ️ データが見つかりません。空のテーブルを表示します。');
+              showEmptyTableMessage();
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('❌ データ取得エラー:', error);
+            showEmptyTableMessage();
+          })
+          .getAllSpreadsheetData();
+      }
+
+      /**
+       * スプレッドシートデータからテーブルを構築
+       */
+      function buildTableFromSpreadsheetData(data) {
+        try {
+          console.log('📊 テーブル構築開始:', data);
+          
+          if (!data || data.length === 0) {
+            console.log('⚠️ データが空です');
+            showEmptyTableMessage();
+            return;
+          }
+
+          // ヘッダー行を構築
+          var headerRow = document.getElementById('table-header-row');
+          if (!headerRow) {
+            console.error('❌ table-header-row が見つかりません');
+            return;
+          }
+          
+          headerRow.innerHTML = '<th>項目 / 投稿日時</th>';
+          
+          data.forEach(function (post, index) {
+            try {
+              var th = document.createElement('th');
+              var postDate = new Date(post.timestamp);
+              
+              // 日付が無効な場合のフォールバック
+              if (isNaN(postDate.getTime())) {
+                console.warn('無効な日付:', post.timestamp);
+                th.innerHTML = '-';
+              } else {
+                var dateStr = (postDate.getMonth() + 1) + '/' + postDate.getDate() + '<br />' +
+                              postDate.getHours() + ':' + String(postDate.getMinutes()).padStart(2, '0');
+                th.innerHTML = dateStr;
+              }
+              
+              th.classList.add('date-column');
+              headerRow.appendChild(th);
+            } catch (headerError) {
+              console.error('ヘッダー生成エラー (投稿' + index + '):', headerError);
+            }
+          });
+          
+          console.log('✅ ヘッダー行構築完了');
+
+        // 各メトリック行にセルを追加
+        var metrics = [
+          { name: 'post_text', field: 'text' },
+          { name: 'character_count', field: 'character_count' },
+          { name: 'post_type', field: 'media_type' },
+          { name: 'impressions', field: 'insights.views' },
+          { name: 'likes', field: 'insights.likes' },
+          { name: 'reposts', field: 'insights.reposts' },
+          { name: 'replies', field: 'insights.replies' },
+          { name: 'total_engagement', field: 'insights.total_engagement' },
+          { name: 'engagement_rate', field: 'insights.engagement_rate' },
+          { name: 'follower_count', field: 'insights.follower_count' }
+        ];
+
+          var tbody = document.getElementById('table-body');
+          if (!tbody) {
+            console.error('❌ table-body が見つかりません');
+            return;
+          }
+          
+          var rows = tbody.querySelectorAll('tr');
+          console.log('📋 テーブル行数:', rows.length);
+          
+          metrics.forEach(function (metric, metricIndex) {
+            try {
+              var targetRow = null;
+              
+              // thのテキストから行を探す
+              rows.forEach(function (row) {
+                var th = row.querySelector('th');
+                if (th) {
+                  var thText = th.textContent.trim();
+                  if (
+                    (metric.name === 'post_text' && thText === '投稿文') ||
+                    (metric.name === 'character_count' && thText === '文字数') ||
+                    (metric.name === 'post_type' && thText === 'タイプ') ||
+                    (metric.name === 'impressions' && thText === 'インプ(12h)') ||
+                    (metric.name === 'likes' && thText === 'いいね(12h)') ||
+                    (metric.name === 'reposts' && thText === '再投稿/引用(12h)') ||
+                    (metric.name === 'replies' && thText === 'リプライ(12h)') ||
+                    (metric.name === 'total_engagement' && thText === 'Eng総数(12h)') ||
+                    (metric.name === 'engagement_rate' && thText === 'Eng率(12h)') ||
+                    (metric.name === 'follower_count' && thText === '総フォロワー(12h)')
+                  ) {
+                    targetRow = row;
+                  }
+                }
+              });
+
+              if (targetRow) {
+                // 新しいデータセルを追加
+                data.forEach(function (post, postIndex) {
+                  try {
+                    var td = document.createElement('td');
+                    td.classList.add('data-cell');
+                    td.setAttribute('data-metric', metric.name);
+                    
+                    var value = getNestedValue(post, metric.field);
+                    
+                    if (metric.name === 'post_text') {
+                      var fullTextValue = value || '';
+                      td.setAttribute('data-full-text', fullTextValue);
+                      td.textContent = truncateText(fullTextValue, 50);
+                      td.style.cursor = 'pointer';
+                      td.style.color = '#1976d2';
+                      td.title = 'クリックして全文表示';
+                      
+                      // クロージャでfullTextValueをキャプチャ
+                      (function(capturedText) {
+                        td.onclick = function () {
+                          showPostTextModal(capturedText);
+                        };
+                      })(fullTextValue);
+                    } else if (metric.name === 'engagement_rate') {
+                      td.textContent = value ? value.toFixed(2) + '%' : '-';
+                    } else {
+                      td.textContent = value !== null && value !== undefined ? value : '-';
+                    }
+                    
+                    targetRow.appendChild(td);
+                  } catch (cellError) {
+                    console.error('セル生成エラー (メトリック:' + metric.name + ', 投稿:' + postIndex + '):', cellError);
+                  }
+                });
+              } else {
+                console.warn('⚠️ 行が見つかりません:', metric.name);
+              }
+            } catch (metricError) {
+              console.error('メトリック処理エラー (' + metric.name + '):', metricError);
+            }
+          });
+
+          // colspan を更新
+          updateColspans(data.length);
+          
+          console.log('✅ テーブル構築完了');
+          
+        } catch (error) {
+          console.error('❌ テーブル構築エラー:', error);
+          showEmptyTableMessage();
+        }
+      }
+
+      /**
+       * ネストされたオブジェクトから値を取得
+       */
+      function getNestedValue(obj, path) {
+        return path.split('.').reduce(function (current, key) {
+          return current && current[key] !== undefined ? current[key] : null;
+        }, obj);
+      }
+
+      /**
+       * テキストを指定文字数でトランケート
+       */
+      function truncateText(text, maxLength) {
+        if (!text) return '';
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+      }
+
+      /**
+       * colspanを更新
+       */
+      function updateColspans(dataCount) {
+        var colspan = dataCount + 1; // +1 for header column
+        var freeHeader = document.getElementById('free-data-header');
+        if (freeHeader) {
+          freeHeader.setAttribute('colspan', colspan);
+        }
+        
+        var premiumHeaders = document.querySelectorAll('.time-header-row.premium-row th');
+        premiumHeaders.forEach(function (header) {
+          header.setAttribute('colspan', colspan);
+        });
+        
+        var spacerRows = document.querySelectorAll('.spacer-row td');
+        spacerRows.forEach(function (cell) {
+          cell.setAttribute('colspan', colspan);
+        });
+      }
+
+      /**
+       * 空のテーブルメッセージを表示
+       */
+      function showEmptyTableMessage() {
+        var tbody = document.getElementById('table-body');
+        var messageRow = document.createElement('tr');
+        var messageCell = document.createElement('td');
+        messageCell.setAttribute('colspan', '10');
+        messageCell.style.textAlign = 'center';
+        messageCell.style.padding = '40px';
+        messageCell.style.color = '#666';
+        messageCell.innerHTML = '📭 データがありません<br><br>「設定」タブでAPIキーとスプレッドシートIDを設定後、<br>「🚀 データ取得・保存を実行」ボタンでデータを取得してください。';
+        messageRow.appendChild(messageCell);
+        tbody.insertBefore(messageRow, tbody.firstChild);
+      }
+
+      /**
+       * システム状態確認
+       */
+      function checkSystemStatus() {
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              const data = result.data;
+              const statusText = document.getElementById('system-status-text');
+              const statusIndicator = document.getElementById('system-status-indicator');
+
+              if (data.systemReady) {
+                statusText.textContent = '✅ システム準備完了';
+                statusIndicator.className = 'system-ready';
+              } else {
+                let missingItems = [];
+                if (!data.apiKeyConfigured) missingItems.push('APIキー');
+                if (!data.spreadsheetConfigured) missingItems.push('スプレッドシートID');
+
+                statusText.textContent = `⚠️ 設定が不完全です (未設定: ${missingItems.join(', ')})`;
+                statusIndicator.className = 'system-not-ready';
+              }
+            } else {
+              document.getElementById('system-status-text').textContent = 'エラー: ' + result.message;
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('システム状態確認エラー:', error);
+            document.getElementById('system-status-text').textContent = 'エラー: ' + error.message;
+          })
+          .getSystemStatus();
+      }
+
+      /**
+       * データベース初期化
+       */
+      function initializeDatabase() {
+        if (!confirm('データベースを初期化しますか？\n既存のデータ構造がある場合は上書きされます。')) {
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              alert('データベース初期化完了！\n\n' + result.message);
+              checkSystemStatus();
+            } else {
+              alert('初期化失敗: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('データベース初期化エラー:', error);
+            alert('データベース初期化でエラーが発生しました: ' + error.message);
+          })
+          .initializeSpreadsheetDatabase();
+      }
+
+      /**
+       * バッチトリガー設定
+       */
+      function setupBatchTrigger() {
+        if (!confirm('1時間毎の自動データ収集を開始しますか？')) {
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              alert('自動実行を開始しました！\n\n' + result.message);
+              checkBatchStatus();
+            } else {
+              alert('設定失敗: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('バッチトリガー設定エラー:', error);
+            alert('自動実行設定でエラーが発生しました: ' + error.message);
+          })
+          .setupBatchTrigger();
+      }
+
+      /**
+       * バッチトリガー停止
+       */
+      function stopBatchTrigger() {
+        if (!confirm('自動データ収集を停止しますか？')) {
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              alert('自動実行を停止しました。\n\n' + result.message);
+              checkBatchStatus();
+            } else {
+              alert('停止失敗: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('バッチトリガー停止エラー:', error);
+            alert('自動実行停止でエラーが発生しました: ' + error.message);
+          })
+          .removeBatchTrigger();
+      }
+
+      /**
+       * バッチ状態確認
+       */
+      function checkBatchStatus() {
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              const data = result.data;
+              const indicator = document.getElementById('batch-status-indicator');
+
+              if (data.isActive) {
+                indicator.textContent = '✅ 自動実行中 (1時間毎)';
+                indicator.style.color = '#2e7d32';
+              } else {
+                indicator.textContent = '❌ 自動実行停止中';
+                indicator.style.color = '#d32f2f';
+              }
+            } else {
+              document.getElementById('batch-status-indicator').textContent = 'エラー: ' + result.message;
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('バッチ状態確認エラー:', error);
+            document.getElementById('batch-status-indicator').textContent = 'エラー: ' + error.message;
+          })
+          .getBatchTriggerStatus();
+      }
+
+      /**
+       * バッチ実行状況確認（旧バージョン・アラート表示）
+       */
+      function getBatchStatus() {
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              const data = result.data;
+              const stats = data.statistics;
+              const health = data.systemHealth;
+
+              let message = `バッチ実行統計 (過去30日間)\n\n`;
+              message += `総実行回数: ${stats.totalExecutions}回\n`;
+              message += `成功: ${stats.successfulExecutions}回\n`;
+              message += `失敗: ${stats.failedExecutions}回\n`;
+              message += `エラー率: ${stats.errorRate.toFixed(1)}%\n`;
+              message += `平均処理投稿数: ${stats.averagePostsProcessed.toFixed(1)}件\n`;
+              message += `平均実行時間: ${(stats.averageExecutionTime / 1000).toFixed(1)}秒\n`;
+
+              if (stats.lastExecution) {
+                message += `最終実行: ${new Date(stats.lastExecution).toLocaleString()}\n`;
+              }
+
+              message += `\nシステム健全性: ${health.isHealthy ? '✅ 正常' : '⚠️ 注意が必要'}`;
+
+              if (health.consecutiveFailures > 0) {
+                message += `\n連続失敗: ${health.consecutiveFailures}回`;
+              }
+
+              alert(message);
+            } else {
+              alert('バッチ状況取得失敗: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('バッチ状況確認エラー:', error);
+            alert('バッチ状況確認でエラーが発生しました: ' + error.message);
+          })
+          .getBatchExecutionStatus();
+      }
+
+      /**
+       * バッチ実行状況を更新（詳細表示版）
+       */
+      function refreshBatchStatus() {
+        // ローディング表示
+        document.getElementById('batch-statistics').style.display = 'none';
+        document.getElementById('batch-recent-logs').style.display = 'none';
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result.success) {
+              const data = result.data;
+              const stats = data.statistics;
+              const health = data.systemHealth;
+              const logs = data.recentLogs || [];
+
+              // 統計情報を表示
+              document.getElementById('stat-total-executions').textContent = stats.totalExecutions;
+              document.getElementById('stat-successful-executions').textContent = stats.successfulExecutions;
+              document.getElementById('stat-failed-executions').textContent = stats.failedExecutions;
+              document.getElementById('stat-error-rate').textContent = stats.errorRate.toFixed(2);
+              document.getElementById('stat-avg-posts').textContent = stats.averagePostsProcessed;
+              document.getElementById('stat-avg-time').textContent = stats.averageExecutionTime;
+              document.getElementById('stat-last-execution').textContent = stats.lastExecution 
+                ? new Date(stats.lastExecution).toLocaleString() 
+                : '未実行';
+
+              // システム健全性を表示
+              const healthStatus = document.getElementById('stat-health-status');
+              if (health.isHealthy) {
+                healthStatus.innerHTML = '<span style="color: #28a745;">✅ 正常</span>';
+              } else {
+                healthStatus.innerHTML = `<span style="color: #dc3545;">⚠️ 注意 (連続失敗: ${health.consecutiveFailures}回)</span>`;
+              }
+
+              // 統計セクションを表示
+              document.getElementById('batch-statistics').style.display = 'block';
+
+              // ログを表示
+              if (logs.length > 0) {
+                const logsContainer = document.getElementById('batch-logs-container');
+                logsContainer.innerHTML = '';
+
+                logs.forEach(log => {
+                  const logEntry = document.createElement('div');
+                  logEntry.style.cssText = 'padding: 8px; margin-bottom: 8px; border-left: 3px solid #dee2e6; background: #f8f9fa; font-size: 13px;';
+
+                  // ログレベルに応じて色を変更
+                  let levelColor = '#6c757d';
+                  if (log.logLevel === 'SUCCESS') levelColor = '#28a745';
+                  else if (log.logLevel === 'ERROR') levelColor = '#dc3545';
+                  else if (log.logLevel === 'WARNING') levelColor = '#ffc107';
+                  logEntry.style.borderLeftColor = levelColor;
+
+                  const timestamp = new Date(log.timestamp).toLocaleString();
+                  const executionTime = log.executionTime ? `${log.executionTime}ms` : '-';
+
+                  logEntry.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                      <span style="font-weight: bold; color: ${levelColor};">[${log.logLevel}]</span>
+                      <span style="font-size: 11px; color: #6c757d;">${timestamp}</span>
+                    </div>
+                    <div style="margin-bottom: 4px;">${log.message}</div>
+                    <div style="font-size: 11px; color: #6c757d;">
+                      処理件数: ${log.postsProcessed}件 | 実行時間: ${executionTime}
+                      ${log.errorDetails ? ` | エラー: ${log.errorDetails}` : ''}
+                    </div>
+                  `;
+
+                  logsContainer.appendChild(logEntry);
+                });
+
+                document.getElementById('batch-recent-logs').style.display = 'block';
+              }
+
+              console.log('バッチ実行状況を更新しました');
+            } else {
+              alert('バッチ状況取得失敗: ' + result.message);
+            }
+          })
+          .withFailureHandler(function (error) {
+            console.error('バッチ状況確認エラー:', error);
+            alert('バッチ状況確認でエラーが発生しました: ' + error.message);
+          })
+          .getBatchExecutionStatus();
+      }
+
     </script>
   </body>
 </html>

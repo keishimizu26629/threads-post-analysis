@@ -288,4 +288,98 @@ class DataManager {
       throw error;
     }
   }
+
+  /**
+   * スプレッドシートにデータを保存
+   */
+  saveToSpreadsheet(postData: object): { success: boolean; message: string } {
+    try {
+      const spreadsheetManager = new SpreadsheetManager();
+      const result = spreadsheetManager.appendPostData(postData);
+
+      if (result) {
+        console.log('スプレッドシートにデータを保存しました');
+        return { success: true, message: 'データを保存しました' };
+      } else {
+        return { success: false, message: 'データの保存に失敗しました' };
+      }
+    } catch (error) {
+      console.error('スプレッドシート保存エラー:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, message: 'スプレッドシート保存エラー: ' + errorMessage };
+    }
+  }
+
+  /**
+   * スプレッドシートに複数データを一括保存
+   */
+  batchSaveToSpreadsheet(postDataArray: object[]): {
+    success: boolean;
+    message: string;
+    count?: number;
+  } {
+    try {
+      const spreadsheetManager = new SpreadsheetManager();
+      const result = spreadsheetManager.batchAppendPostData(postDataArray);
+
+      if (result) {
+        console.log(`${postDataArray.length}件のデータをスプレッドシートに一括保存しました`);
+        return {
+          success: true,
+          message: `${postDataArray.length}件のデータを保存しました`,
+          count: postDataArray.length,
+        };
+      } else {
+        return { success: false, message: 'データの一括保存に失敗しました' };
+      }
+    } catch (error) {
+      console.error('スプレッドシート一括保存エラー:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, message: 'スプレッドシート一括保存エラー: ' + errorMessage };
+    }
+  }
+
+  /**
+   * スプレッドシートから時系列データを取得
+   */
+  getTimeSeriesDataFromSpreadsheet(postDate: Date, hours: number = 12): object[] {
+    try {
+      const spreadsheetManager = new SpreadsheetManager();
+      const data = spreadsheetManager.getRecentData(postDate, hours);
+
+      console.log(`スプレッドシートから${data.length}件のデータを取得しました`);
+      return data;
+    } catch (error) {
+      console.error('スプレッドシート時系列データ取得エラー:', error);
+      return [];
+    }
+  }
+
+  /**
+   * スプレッドシートの統計情報を取得
+   */
+  getSpreadsheetStatistics(): object {
+    try {
+      const spreadsheetManager = new SpreadsheetManager();
+      return spreadsheetManager.getDataStatistics();
+    } catch (error) {
+      console.error('スプレッドシート統計情報取得エラー:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { totalRows: 0, lastUpdate: null, error: errorMessage };
+    }
+  }
+
+  /**
+   * スプレッドシートアクセステスト
+   */
+  testSpreadsheetConnection(): { success: boolean; message: string; data?: object } {
+    try {
+      const spreadsheetManager = new SpreadsheetManager();
+      return spreadsheetManager.validateAccess();
+    } catch (error) {
+      console.error('スプレッドシート接続テストエラー:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, message: 'スプレッドシート接続テストエラー: ' + errorMessage };
+    }
+  }
 }
