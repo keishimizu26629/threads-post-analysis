@@ -108,7 +108,108 @@ Threads（Meta）の投稿データを定期的に収集・分析し、エンゲ
 
 **保存ボタン**: 各項目の保存ボタンで `PropertiesService` に保存
 
-#### 4. レポートタブ（プレミアム版）
+#### 4. グラフタブ（時系列可視化）
+**目的**: 投稿ごとのメトリクス推移を折れ線グラフで表示
+
+**機能**:
+| 項目 | 説明 |
+|------|------|
+| 投稿選択ドロップダウン | 表示する投稿を選択 |
+| メトリクス選択 | インプレッション、いいね、コメント、シェア、エンゲージメント率から選択 |
+| 折れ線グラフ | Chart.jsで時系列グラフを描画 |
+| マウスホバー | 各データポイントで詳細情報を表示（フォロワー数、経過時間など） |
+| 複数投稿比較 | 最大5件の投稿を同時表示 |
+
+**グラフ仕様**:
+- **X軸**: 取得時刻（`captured_at`）または投稿からの経過時間（`hours_since_post`）
+- **Y軸**: 選択したメトリクス
+- **線の色**: 投稿ごとに異なる色（自動割り当て）
+- **ツールチップ**: `投稿ID: xxx / 時刻: 2024-11-27 15:00 / インプレッション: 1,250 / フォロワー数: 1,520`
+
+**実装例（Chart.js）**:
+```javascript
+async function loadTimeSeriesChart(postId) {
+  // バックエンドからデータ取得
+  const data = await google.script.run.withSuccessHandler((result) => {
+    renderChart(result);
+  }).getMetricsByPostId(postId);
+}
+
+function renderChart(metrics) {
+  const ctx = document.getElementById('timeSeriesChart').getContext('2d');
+  
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: metrics.map(m => formatDate(m.capturedAt)),
+      datasets: [{
+        label: 'インプレッション',
+        data: metrics.map(m => m.impressions),
+        borderColor: 'rgb(75, 192, 192)',
+        tension: 0.1,
+        fill: false
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        tooltip: {
+          callbacks: {
+            afterBody: (context) => {
+              const index = context[0].dataIndex;
+              const metric = metrics[index];
+              return [
+                `フォロワー数: ${metric.followerCount.toLocaleString()}`,
+                `投稿からの経過: ${metric.hoursSincePost}時間`,
+                `エンゲージメント率: ${metric.engagementRate.toFixed(2)}%`
+              ];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: '取得時刻' }
+        },
+        y: {
+          title: { display: true, text: 'インプレッション数' },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+```
+
+**データ取得API**:
+```javascript
+// WebアプリのdoGet()でJSON返却
+function doGet(e) {
+  const action = e.parameter.action;
+  
+  if (action === 'getMetrics') {
+    const postId = e.parameter.postId;
+    const data = getMetricsByPostId(postId);
+    
+    return ContentService
+      .createTextOutput(JSON.stringify(data))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  if (action === 'getAllMetrics') {
+    const data = getMetricsForLast7Days();
+    
+    return ContentService
+      .createTextOutput(JSON.stringify(data))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  // デフォルト: HTMLアプリ表示
+  return HtmlService.createHtmlOutputFromFile('dashboard');
+}
+```
+
+#### 5. レポートタブ（プレミアム版）
 **目的**: 月次サマリーとランキング
 
 | セクション | 説明 |
@@ -547,44 +648,262 @@ function truncateToHour(date) {
 
 ### データアクセスパターン
 
-#### 1. 新規投稿データの追加
-```typescript
-// 1. APIから投稿データ取得
-const threads = threadsApi.getThreads(100);
+#### 1. 時系列メトリクス収集（1時間ごと）
 
-// 2. 既存データとの重複チェック
-for (const thread of threads.data) {
-  const existingRow = spreadsheetManager.findRowByThreadId(thread.id);
+**処理フロー**:
+```typescript
+function fetchMetricsHourly(): { success: boolean; message: string; count: number } {
+  try {
+    const now = new Date();
+    const capturedAt = truncateToHour(now); // 時刻を1時間単位に丸める
+    
+    // 1. 過去7日以内の投稿を取得
+    const posts = getRecentPosts(7);
+    
+    // 2. 各投稿のメトリクスをAPI取得
+    const metrics: any[] = [];
+    for (const post of posts) {
+      const insights = threadsApi.getThreadInsights(post.post_id);
+      
+      // 投稿からの経過時間を計算
+      const hoursSincePost = Math.floor(
+        (now.getTime() - new Date(post.posted_at).getTime()) / (1000 * 60 * 60)
+      );
+      
+      metrics.push({
+        post_id: post.post_id,
+        captured_at: capturedAt,
+        impressions: insights.impressions,
+        likes: insights.likes_count,
+        comments: insights.replies_count,
+        shares: insights.reposts_count,
+        follower_count: insights.follower_count,
+        account_id: post.account_id,
+        engagement_rate: dataProcessor.calculateEngagementRate(
+          insights.likes_count,
+          insights.replies_count,
+          insights.reposts_count,
+          insights.impressions
+        ),
+        hours_since_post: hoursSincePost
+      });
+      
+      // レート制限対策: 18秒間隔
+      Utilities.sleep(18000);
+    }
+    
+    // 3. post_metrics_hourlyシートに保存（重複チェック付き）
+    const sheet = SpreadsheetApp.getActive().getSheetByName('post_metrics_hourly');
+    
+    for (const metric of metrics) {
+      // 既存データチェック（post_id × captured_at）
+      const existingRow = findMetricRow(sheet, metric.post_id, metric.captured_at);
+      
+      if (existingRow === null) {
+        // 新規追加
+        sheet.appendRow([
+          metric.post_id,
+          metric.captured_at,
+          metric.impressions,
+          metric.likes,
+          metric.comments,
+          metric.shares,
+          metric.follower_count,
+          metric.account_id,
+          metric.engagement_rate,
+          metric.hours_since_post
+        ]);
+      } else {
+        // 上書き更新
+        sheet.getRange(existingRow, 1, 1, 10).setValues([[
+          metric.post_id,
+          metric.captured_at,
+          metric.impressions,
+          metric.likes,
+          metric.comments,
+          metric.shares,
+          metric.follower_count,
+          metric.account_id,
+          metric.engagement_rate,
+          metric.hours_since_post
+        ]]);
+      }
+    }
+    
+    // 4. 7日より古いデータを削除
+    deleteOldMetrics(sheet, 7);
+    
+    // 5. ログ記録
+    logInfo(`時系列データ収集完了: ${metrics.length}件`, 'fetchMetricsHourly');
+    
+    return { success: true, message: `${metrics.length}件のメトリクスを収集しました`, count: metrics.length };
+    
+  } catch (error) {
+    logError('時系列メトリクス収集エラー', error, 'fetchMetricsHourly');
+    return { success: false, message: `エラー: ${error.message}`, count: 0 };
+  }
+}
+
+// 時刻を1時間単位に丸める
+function truncateToHour(date: Date): Date {
+  const d = new Date(date);
+  d.setMinutes(0, 0, 0);
+  return d;
+}
+
+// 過去N日以内の投稿を取得
+function getRecentPosts(days: number): any[] {
+  const sheet = SpreadsheetApp.getActive().getSheetByName('posts');
+  const values = sheet.getDataRange().getValues();
   
-  if (existingRow === null) {
-    // 3. 新規データとして追加
-    spreadsheetManager.appendRow([
-      thread.id,
-      thread.timestamp,
-      thread.text,
-      dataProcessor.countCharacters(thread.text),
-      thread.media_type,
-      thread.likes_count,
-      thread.replies_count,
-      thread.reposts_count,
-      thread.impressions,
-      dataProcessor.calculateEngagementRate(
-        thread.likes_count,
-        thread.replies_count,
-        thread.reposts_count,
-        thread.impressions
-      ),
-      new Date(),
-      new Date()
-    ]);
-  } else {
-    // 4. 既存データの更新（12時間後のデータ取得時など）
-    spreadsheetManager.updateRow(existingRow, [...]);
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  
+  const posts = [];
+  for (let i = 1; i < values.length; i++) {
+    const postedAt = new Date(values[i][3]); // D列: posted_at
+    if (postedAt >= cutoffDate) {
+      posts.push({
+        post_id: values[i][0],
+        platform: values[i][1],
+        account_id: values[i][2],
+        posted_at: values[i][3]
+      });
+    }
+  }
+  
+  return posts;
+}
+
+// 既存メトリクス行を検索
+function findMetricRow(sheet: GoogleAppsScript.Spreadsheet.Sheet, postId: string, capturedAt: Date): number | null {
+  const values = sheet.getDataRange().getValues();
+  
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === postId && values[i][1].getTime() === capturedAt.getTime()) {
+      return i + 1; // 1-based index
+    }
+  }
+  
+  return null;
+}
+
+// 古いデータを削除
+function deleteOldMetrics(sheet: GoogleAppsScript.Spreadsheet.Sheet, retentionDays: number): void {
+  const values = sheet.getDataRange().getValues();
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+  
+  // 削除対象行を逆順で削除（行番号がずれないように）
+  for (let i = values.length - 1; i >= 1; i--) {
+    const capturedAt = new Date(values[i][1]);
+    if (capturedAt < cutoffDate) {
+      sheet.deleteRow(i + 1);
+    }
   }
 }
 ```
 
-#### 2. 月次レポート用データ取得
+#### 2. 新規投稿データの追加（投稿マスタ）
+
+```typescript
+function addNewPost(threadData: any): void {
+  const sheet = SpreadsheetApp.getActive().getSheetByName('posts');
+  
+  // 重複チェック
+  const existingRow = findPostByPostId(sheet, threadData.id);
+  if (existingRow !== null) {
+    console.log('投稿は既に存在します:', threadData.id);
+    return;
+  }
+  
+  // 新規追加
+  sheet.appendRow([
+    threadData.id,                                    // post_id
+    'threads',                                        // platform
+    threadData.account_id,                            // account_id
+    threadData.timestamp,                             // posted_at
+    threadData.text,                                  // content
+    `https://threads.net/@${threadData.username}/post/${threadData.id}`, // url
+    dataProcessor.countCharacters(threadData.text),   // char_count
+    threadData.media_type,                            // media_type
+    extractHashtags(threadData.text).join(','),       // hashtags
+    new Date(),                                       // created_at
+    new Date()                                        // updated_at
+  ]);
+}
+```
+
+#### 3. 過去7日分の時系列データ取得（API用）
+
+```typescript
+function getMetricsForLast7Days(): any[] {
+  const sheet = SpreadsheetApp.getActive().getSheetByName('post_metrics_hourly');
+  const values = sheet.getDataRange().getValues();
+  
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  
+  const result = [];
+  
+  for (let i = 1; i < values.length; i++) {
+    const [postId, capturedAt, impressions, likes, comments, shares, followerCount, accountId, engagementRate, hoursSincePost] = values[i];
+    
+    if (capturedAt >= sevenDaysAgo) {
+      result.push({
+        postId,
+        capturedAt: capturedAt.toISOString(),
+        impressions,
+        likes,
+        comments,
+        shares,
+        followerCount,
+        accountId,
+        engagementRate,
+        hoursSincePost
+      });
+    }
+  }
+  
+  return result;
+}
+```
+
+#### 4. 投稿ごとの時系列データ取得（グラフ表示用）
+
+```typescript
+function getMetricsByPostId(postId: string): any[] {
+  const sheet = SpreadsheetApp.getActive().getSheetByName('post_metrics_hourly');
+  const values = sheet.getDataRange().getValues();
+  
+  const result = [];
+  
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === postId) {
+      result.push({
+        postId: values[i][0],
+        capturedAt: values[i][1],
+        impressions: values[i][2],
+        likes: values[i][3],
+        comments: values[i][4],
+        shares: values[i][5],
+        followerCount: values[i][6],
+        accountId: values[i][7],
+        engagementRate: values[i][8],
+        hoursSincePost: values[i][9]
+      });
+    }
+  }
+  
+  // 時刻順にソート
+  result.sort((a, b) => a.capturedAt.getTime() - b.capturedAt.getTime());
+  
+  return result;
+}
+```
+
+#### 5. 月次レポート用データ取得
+
 ```typescript
 // 1. 期間指定でデータ取得
 const startDate = new Date(2024, 10, 1); // 2024年11月1日
@@ -698,6 +1017,76 @@ function logError(message: string, error: any): void {
 ---
 
 ## 🔄 バッチ処理仕様
+
+### トリガー一覧
+
+| トリガー名 | 実行頻度 | 実行時刻 | 関数名 | 目的 |
+|-----------|---------|---------|--------|------|
+| 時系列メトリクス収集 | 1時間ごと | 毎時0分 | `fetchMetricsHourly()` | 過去7日以内の全投稿のメトリクスを収集 |
+| 日次分析 | 毎日 | 9:00 | `runDailyAnalysis()` | 新規投稿の追加、プロフィール情報更新 |
+| 週次レポート | 毎週月曜 | 10:00 | `generateWeeklyReport()` | 週次サマリーレポート生成 |
+| 月次レポート | 毎月1日 | 10:00 | `generateMonthlyReport()` | 月次詳細レポート生成 |
+
+---
+
+### 時系列メトリクス収集（1時間ごと）
+
+#### `fetchMetricsHourly()`の処理フロー
+
+```
+1. 時刻を1時間単位に丸める
+   └─ 2024-11-27 14:35:23 → 2024-11-27 14:00:00
+
+2. 過去7日以内の投稿を取得
+   ├─ postsシートから取得
+   └─ posted_at >= (現在 - 7日)
+
+3. 各投稿のメトリクスをAPI取得
+   ├─ threadsApi.getThreadInsights(post_id)
+   ├─ レート制限対策: 18秒間隔（200リクエスト/時間）
+   └─ フォロワー数も同時に取得
+
+4. post_metrics_hourlyシートに保存
+   ├─ 重複チェック（post_id × captured_at）
+   ├─ 既存データがあれば上書き
+   └─ なければ新規追加
+
+5. 古いデータの削除
+   ├─ captured_at < (現在 - 7日) のデータを削除
+   └─ データ肥大化防止
+
+6. ログ記録
+   └─ 収集件数、エラーをlogsシートに記録
+```
+
+#### トリガー設定方法
+
+```javascript
+function setupHourlyTrigger() {
+  // 既存のトリガーを削除
+  TriggerManager.deleteTrigger('fetchMetricsHourly');
+  
+  // 1時間ごとのトリガーを設定
+  ScriptApp.newTrigger('fetchMetricsHourly')
+    .timeBased()
+    .everyHours(1)
+    .create();
+  
+  console.log('時系列メトリクス収集トリガーを設定しました');
+}
+```
+
+#### 実行時間の目安
+
+| 投稿数 | API呼び出し時間 | データ保存時間 | 合計 |
+|-------|----------------|---------------|------|
+| 10件 | 約3分 | 約10秒 | **約3分10秒** |
+| 30件 | 約9分 | 約30秒 | **約9分30秒** |
+| 50件 | 約15分 | 約50秒 | **約15分50秒** |
+
+**注意**: GASの最大実行時間は6分（無料版）または30分（Workspace）。投稿数が多い場合はバッチ分割を検討。
+
+---
 
 ### 日次バッチ（毎日9:00実行）
 
@@ -1074,6 +1463,181 @@ private waitForRateLimit(): void {
   CacheService.getScriptCache().put('last_api_call', now.toString(), 3600);
 }
 ```
+
+---
+
+## ⚠️ 運用注意点 & 拡張案
+
+### 運用上の注意点
+
+#### 1. API制限とレート対策
+
+| 項目 | 制限 | 対策 |
+|------|------|------|
+| Threads API | 200リクエスト/時間 | 18秒間隔で呼び出し |
+| GAS実行時間 | 6分（無料）/ 30分（Workspace） | 投稿数が多い場合はバッチ分割 |
+| スプレッドシート書き込み | 制限なし | バッチ書き込みで高速化 |
+
+**投稿数が多い場合の対策**:
+```javascript
+function fetchMetricsHourlyBatch() {
+  const posts = getRecentPosts(7);
+  const batchSize = 15; // 1回のバッチで15件まで（約4.5分）
+  
+  const batches = [];
+  for (let i = 0; i < posts.length; i += batchSize) {
+    batches.push(posts.slice(i, i + batchSize));
+  }
+  
+  // 最初のバッチのみ実行（次回のトリガーで続きを実行）
+  const batchIndex = parseInt(PropertiesService.getScriptProperties().getProperty('batch_index') || '0');
+  
+  if (batchIndex < batches.length) {
+    fetchMetricsBatch(batches[batchIndex]);
+    PropertiesService.getScriptProperties().setProperty('batch_index', (batchIndex + 1).toString());
+  } else {
+    // 全バッチ完了
+    PropertiesService.getScriptProperties().setProperty('batch_index', '0');
+  }
+}
+```
+
+#### 2. データ肥大化対策
+
+**問題**: `post_metrics_hourly`シートが肥大化する
+
+**対策**:
+- ✅ **7日以上のデータは自動削除**: `deleteOldMetrics()`で実装済み
+- ✅ **月次バックアップ**: 月初に別シート（`archive_YYYYMM`）にコピー
+- ✅ **BigQueryへエクスポート**: 長期保存が必要な場合はBigQueryへ移行
+
+```javascript
+function archiveMonthlyData() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName('post_metrics_hourly');
+  const lastMonth = new Date();
+  lastMonth.setMonth(lastMonth.getMonth() - 1);
+  
+  const archiveSheetName = `archive_${lastMonth.getFullYear()}${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+  const archiveSheet = SpreadsheetApp.getActive().insertSheet(archiveSheetName);
+  
+  // データをコピー
+  const values = sheet.getDataRange().getValues();
+  const archiveData = values.filter((row, index) => {
+    if (index === 0) return true; // ヘッダー
+    const capturedAt = new Date(row[1]);
+    return capturedAt.getMonth() === lastMonth.getMonth();
+  });
+  
+  archiveSheet.getRange(1, 1, archiveData.length, archiveData[0].length).setValues(archiveData);
+}
+```
+
+#### 3. タイムゾーン統一
+
+**重要**: スプレッドシートとGASのタイムゾーンを **JST（Asia/Tokyo）** に統一
+
+**設定方法**:
+1. **appsscript.json**:
+```json
+{
+  "timeZone": "Asia/Tokyo"
+}
+```
+
+2. **スプレッドシートのタイムゾーン**:
+   - ファイル → 設定 → タイムゾーン → `(GMT+09:00) 東京`
+
+#### 4. エラー通知
+
+**推奨**: バッチ処理でエラーが発生した場合、メール通知を送信
+
+```javascript
+function sendErrorNotification(error: any, functionName: string): void {
+  const recipient = Session.getActiveUser().getEmail();
+  const subject = `【エラー】Threads分析ツール - ${functionName}`;
+  const body = `
+エラーが発生しました。
+
+関数名: ${functionName}
+時刻: ${new Date().toLocaleString('ja-JP')}
+エラー: ${error.message}
+スタックトレース: ${error.stack}
+
+ログを確認してください。
+  `;
+  
+  MailApp.sendEmail(recipient, subject, body);
+}
+```
+
+---
+
+### 将来の拡張案
+
+#### 1. BigQuery連携
+
+**目的**: 長期データの保存と高速分析
+
+**実装方針**:
+- GASから定期的にBigQueryにデータをエクスポート
+- Looker StudioでダッシュボードPlaを作成
+
+```javascript
+function exportToBigQuery() {
+  const projectId = 'your-project-id';
+  const datasetId = 'threads_analysis';
+  const tableId = 'post_metrics_hourly';
+  
+  const sheet = SpreadsheetApp.getActive().getSheetByName('post_metrics_hourly');
+  const values = sheet.getDataRange().getValues();
+  
+  // BigQuery APIで挿入（省略）
+}
+```
+
+#### 2. Firestore連携
+
+**目的**: リアルタイム性の向上
+
+**実装方針**:
+- GASからFirestoreにデータを保存
+- Webアプリでリアルタイム更新
+
+#### 3. マルチアカウント対応
+
+**目的**: 複数のThreadsアカウントを一元管理
+
+**実装方針**:
+- `accounts`シートを追加
+- UIでアカウント切り替え機能を実装
+
+#### 4. 競合分析機能
+
+**目的**: 競合アカウントのメトリクスも収集・比較
+
+**実装方針**:
+- Threads APIで他アカウントの公開データを取得
+- 比較グラフを表示
+
+#### 5. AI分析機能
+
+**目的**: 投稿内容とエンゲージメントの相関分析
+
+**実装方針**:
+- Gemini APIで投稿文をトピック分類
+- トピックごとのエンゲージメント率を分析
+- おすすめの投稿時間・内容を提案
+
+---
+
+### パフォーマンス最適化チェックリスト
+
+- [ ] バッチ書き込みを使用している
+- [ ] 不要なAPI呼び出しを削減している
+- [ ] CacheServiceを活用している
+- [ ] レート制限に対応している
+- [ ] 古いデータを定期的に削除している
+- [ ] スプレッドシートの範囲を適切に指定している（`getDataRange()`の乱用を避ける）
 
 ---
 
