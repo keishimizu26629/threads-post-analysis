@@ -535,21 +535,6 @@
               >
               <div style="display: flex; gap: 10px">
                 <button
-                  id="fetch-and-save-btn"
-                  onclick="fetchAndSaveData()"
-                  style="
-                    background: #28a745;
-                    color: white;
-                    border: none;
-                    padding: 8px 16px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                  "
-                >
-                  📥 取得・保存
-                </button>
-                <button
                   id="load-timeseries-btn"
                   onclick="loadTimeSeriesData()"
                   style="
@@ -580,6 +565,9 @@
                   📊 統計情報
                 </button>
               </div>
+              <p style="font-size: 12px; color: #666; margin-top: 8px;">
+                ※ データ取得は「設定」タブの「手動データ取得」から実行してください
+              </p>
             </div>
           </div>
           <div
@@ -1241,9 +1229,9 @@
         logContainer.innerHTML = '<div class="log-entry">ログクリア完了</div>';
       }
 
-      // 手動データ取得・保存機能
+      // 手動データ取得・保存機能（最新ロジック使用）
       function manualFetchAndSave() {
-        addDebugLog('🚀 手動データ取得・保存開始', 'info');
+        addDebugLog('🚀 手動データ取得・保存開始（最新ロジック）', 'info');
         showTestStatus('loading', '🔄 実行中...');
 
         // ボタンを無効化
@@ -1255,16 +1243,20 @@
             document.getElementById('manual-fetch-btn').disabled = false;
             document.getElementById('manual-fetch-btn').textContent = '🚀 データ取得・保存を実行';
 
-            if (result.success) {
-              showTestStatus('success', '✅ データ取得・保存成功！ ' + (result.count || 0) + '件保存しました');
-              addDebugLog('✅ 手動実行成功: ' + (result.count || 0) + '件', 'success');
-              
-              // テーブルをリフレッシュ
-              refreshTableData();
-            } else {
+            if (!result.success) {
               showTestStatus('error', '❌ 失敗: ' + result.message);
               addDebugLog('❌ 手動実行失敗: ' + result.message, 'error');
+              return;
             }
+
+            showTestStatus('success', '✅ データ取得・保存成功！ ' + (result.count || 0) + '件のメトリクスを収集しました');
+            addDebugLog('✅ 手動実行成功: ' + (result.count || 0) + '件', 'success');
+            addDebugLog('詳細: ' + result.message, 'info');
+            
+            // テーブルをリフレッシュ
+            setTimeout(function() {
+              loadInitialDataFromSpreadsheet();
+            }, 1000);
           })
           .withFailureHandler(function (error) {
             document.getElementById('manual-fetch-btn').disabled = false;
@@ -1273,7 +1265,7 @@
             showTestStatus('error', '❌ エラー: ' + error.message);
             addDebugLog('❌ 手動実行エラー: ' + error.message, 'error');
           })
-          .hourlyBatchDataCollection();
+          .fetchMetricsHourly();
       }
 
       // APIテスト機能（接続確認のみ、保存しない）
@@ -1307,18 +1299,23 @@
                   result.success ? 'success' : 'error'
                 );
 
-                if (result.success) {
-                  showTestStatus('success', '✅ データ取得成功！');
-                  showTestResults(result.data);
-                  addDebugLog(
-                    '✅ データ取得成功 - ユーザー: ' +
-                      (result.data.user ? result.data.user.username : 'N/A'),
-                    'success'
-                  );
-                } else {
+                if (!result.success) {
                   showTestStatus('error', '❌ エラー: ' + result.message);
                   addDebugLog('❌ API エラー: ' + result.message, 'error');
+                  return;
                 }
+
+                showTestStatus('success', '✅ データ取得成功！');
+                showTestResults(result.data);
+                
+                const totalPosts = result.data.totalPosts || 0;
+                const recentPostsCount = result.data.recentPostsCount || (result.data.posts ? result.data.posts.length : 0);
+                addDebugLog(
+                  '✅ データ取得成功 - ユーザー: ' +
+                    (result.data.user ? result.data.user.username : 'N/A') +
+                    ', 全投稿数: ' + totalPosts + '件, 7日前までの投稿: ' + recentPostsCount + '件',
+                  'success'
+                );
               })
               .withFailureHandler(function (error) {
                 console.error('API テストエラー:', error);
@@ -1768,44 +1765,6 @@
         }
       }
 
-      function fetchAndSaveData() {
-        // APIキーとスプレッドシートIDの確認
-        if (!document.getElementById('api-key-indicator').textContent.includes('✅')) {
-          alert('APIキーが設定されていません。設定タブでAPIキーを設定してください。');
-          return;
-        }
-
-        if (!document.getElementById('spreadsheet-id-indicator').textContent.includes('✅')) {
-          alert(
-            'スプレッドシートIDが設定されていません。設定タブでスプレッドシートIDを設定してください。'
-          );
-          return;
-        }
-
-        showDataOperationStatus('loading', '📡 Threads APIからデータを取得中...');
-
-        google.script.run
-          .withSuccessHandler(function (result) {
-            if (result.success) {
-              showDataOperationStatus(
-                'success',
-                `✅ ${result.data.postsProcessed}件のデータを保存しました！`
-              );
-
-              // 5秒後にステータスを非表示
-              setTimeout(function () {
-                document.getElementById('data-operation-status').style.display = 'none';
-              }, 5000);
-            } else {
-              showDataOperationStatus('error', '❌ データ取得・保存に失敗: ' + result.message);
-            }
-          })
-          .withFailureHandler(function (error) {
-            console.error('データ取得・保存エラー:', error);
-            showDataOperationStatus('error', '❌ エラーが発生しました: ' + error.message);
-          })
-          .fetchAndSaveToSpreadsheet();
-      }
 
       function loadTimeSeriesData() {
         var postDateInput = document.getElementById('post-datetime-input');
@@ -1963,17 +1922,25 @@
         
         google.script.run
           .withSuccessHandler(function (result) {
+            console.log('📥 データ取得レスポンス:', result);
             if (result.success && result.data && result.data.length > 0) {
               console.log('✅ データ取得成功:', result.data.length + '件');
               buildTableFromSpreadsheetData(result.data);
               // updatePostTextCells()はbuildTableFromSpreadsheetData内で既にセル生成時に処理済み
             } else {
-              console.log('ℹ️ データが見つかりません。空のテーブルを表示します。');
+              console.warn('⚠️ データが見つかりません:', result);
+              if (result.message) {
+                console.warn('メッセージ:', result.message);
+                // エラーメッセージをユーザーに表示
+                alert('データ取得結果: ' + result.message);
+              }
               showEmptyTableMessage();
             }
           })
           .withFailureHandler(function (error) {
             console.error('❌ データ取得エラー:', error);
+            console.error('エラー詳細:', JSON.stringify(error));
+            alert('データ取得でエラーが発生しました: ' + (error.message || error));
             showEmptyTableMessage();
           })
           .getAllSpreadsheetData();
@@ -2224,17 +2191,31 @@
           return;
         }
 
+        addDebugLog('🔄 データベース初期化開始', 'info');
+        showTestStatus('loading', '🔄 データベース初期化中...');
+
         google.script.run
           .withSuccessHandler(function (result) {
             if (result.success) {
+              addDebugLog('✅ データベース初期化完了: ' + result.message, 'success');
+              showTestStatus('success', '✅ データベース初期化完了！');
               alert('データベース初期化完了！\n\n' + result.message);
               checkSystemStatus();
+              // 初期化後にデータを再読み込み
+              setTimeout(function() {
+                console.log('初期化完了後、データを再読み込みします');
+                loadInitialDataFromSpreadsheet();
+              }, 1000);
             } else {
+              addDebugLog('❌ 初期化失敗: ' + result.message, 'error');
+              showTestStatus('error', '❌ 初期化失敗: ' + result.message);
               alert('初期化失敗: ' + result.message);
             }
           })
           .withFailureHandler(function (error) {
             console.error('データベース初期化エラー:', error);
+            addDebugLog('❌ データベース初期化エラー: ' + error.message, 'error');
+            showTestStatus('error', '❌ エラー: ' + error.message);
             alert('データベース初期化でエラーが発生しました: ' + error.message);
           })
           .initializeSpreadsheetDatabase();

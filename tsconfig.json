@@ -1,29 +1,21 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
+    "target": "ES2019",
     "module": "None",
-    "noEmit": false,
-    "isolatedModules": false,
-    "lib": ["ES2017", "ES2018", "ES2019"],
+    "lib": ["ES2019"],
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": true,
+    "removeComments": false,
+    "noEmitOnError": false,
+    "strict": false,
     "esModuleInterop": false,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
-    "allowSyntheticDefaultImports": false,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,
-    "noImplicitThis": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "removeComments": false,
-    "declaration": false,
-    "sourceMap": false,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "types": ["google-apps-script"],
+    "noImplicitAny": false,
+    "allowJs": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "scripts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src_backup"]
 }

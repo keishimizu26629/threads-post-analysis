@@ -8,13 +8,37 @@
 
 /**
  * WebアプリのGETリクエストを処理
- * HTMLページを返す
+ * HTMLページまたはJSON APIを返す
  */
-function doGet(e: GoogleAppsScript.Events.DoGet): GoogleAppsScript.HTML.HtmlOutput {
+function doGet(e: GoogleAppsScript.Events.DoGet): GoogleAppsScript.HTML.HtmlOutput | GoogleAppsScript.Content.TextOutput {
   try {
     // eがundefinedの場合（テスト実行時）のハンドリング
+    const action = (e && e.parameter && e.parameter.action) || '';
     const page = (e && e.parameter && e.parameter.page) || 'dashboard';
 
+    // JSON API エンドポイント
+    if (action === 'getMetrics') {
+      const postId = e.parameter.postId;
+      if (!postId) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ success: false, message: 'postIdが指定されていません' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      const data = getMetricsByPostId(postId);
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true, data: data }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (action === 'getAllMetrics') {
+      const data = getMetricsForLast7Days();
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true, data: data }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // HTML ページ
     switch (page) {
       case 'dashboard':
         return HtmlService.createTemplateFromFile('dashboard')
@@ -93,6 +117,56 @@ function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Content.Tex
 
       case 'getBatchExecutionStatus':
         result = getBatchExecutionStatus();
+        break;
+
+      case 'getAllSpreadsheetData':
+        result = getAllSpreadsheetData();
+        break;
+      case 'migrateThreadsDataToNewSchema':
+        result = migrateThreadsDataToNewSchema();
+        break;
+      case 'deleteThreadsDataSheet':
+        result = deleteThreadsDataSheet();
+        break;
+
+      case 'getSettings':
+        result = getSettings();
+        break;
+
+      case 'saveApiKey':
+        result = saveApiKey(data.apiKey || '');
+        break;
+
+      case 'getApiKey':
+        result = { apiKey: getApiKey() };
+        break;
+
+      case 'saveSpreadsheetId':
+        result = saveSpreadsheetId(data.spreadsheetId || '');
+        break;
+
+      case 'getSpreadsheetId':
+        result = { spreadsheetId: getSpreadsheetId() };
+        break;
+
+      case 'testSpreadsheetAccess':
+        result = testSpreadsheetAccess();
+        break;
+
+      case 'testThreadsApiConnection':
+        result = testThreadsApiConnection();
+        break;
+
+      case 'fetchMetricsHourly':
+        result = fetchMetricsHourly();
+        break;
+
+      case 'getTimeSeriesData':
+        result = getTimeSeriesData(data.postDateString, data.hours || 12);
+        break;
+
+      case 'getSpreadsheetStatistics':
+        result = getSpreadsheetStatistics();
         break;
 
       default:
@@ -254,17 +328,38 @@ function testThreadsApiConnection(): { success: boolean; message?: string; data?
       return { success: false, message: 'ユーザー情報の取得に失敗: ' + userInfo.message };
     }
 
-    // 投稿一覧を取得（最新5件）
-    const posts = fetchUserPosts(apiKey, 5);
-    if (!posts.success) {
-      return { success: false, message: '投稿一覧の取得に失敗: ' + posts.message };
+    // 投稿一覧を取得（最大100件）
+    const postsResult = fetchUserPostsWithRetry(apiKey, 100);
+    if (!postsResult.success) {
+      return { success: false, message: '投稿一覧の取得に失敗: ' + postsResult.message };
     }
+
+    const allPosts = Array.isArray(postsResult.data) ? postsResult.data : [];
+    
+    // 7日前までの投稿をフィルタリング
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoTimestamp = Math.floor(sevenDaysAgo.getTime() / 1000);
+    
+    const recentPosts = allPosts.filter((post: any) => {
+      if (!post.timestamp) return false;
+      // timestampはISO8601形式の文字列またはUnixタイムスタンプの可能性がある
+      let postTimestamp: number;
+      if (typeof post.timestamp === 'string') {
+        postTimestamp = Math.floor(new Date(post.timestamp).getTime() / 1000);
+      } else {
+        postTimestamp = post.timestamp;
+      }
+      return postTimestamp >= sevenDaysAgoTimestamp;
+    });
 
     return {
       success: true,
       data: {
         user: userInfo.data,
-        posts: posts.data,
+        posts: recentPosts,
+        totalPosts: allPosts.length,
+        recentPostsCount: recentPosts.length,
         timestamp: new Date().toISOString(),
       },
     };
@@ -527,6 +622,19 @@ function fetchAndSaveToSpreadsheet(): { success: boolean; message: string; data?
 }
 
 /**
+ * 設定を取得
+ */
+function getSettings(): object {
+  try {
+    const dataManager = new DataManager();
+    return dataManager.getSettings();
+  } catch (error) {
+    console.error('設定取得エラー:', error);
+    throw error;
+  }
+}
+
+/**
  * 設定を更新
  */
 function updateSettings(settings: object): boolean {
@@ -622,13 +730,23 @@ function getSystemStatus(): { success: boolean; data?: any; message?: string } {
  */
 function initializeSpreadsheetDatabase(): { success: boolean; message: string } {
   try {
+    console.log('initializeSpreadsheetDatabase: 開始');
     const spreadsheetId = getSpreadsheetId();
     if (!spreadsheetId) {
+      console.error('initializeSpreadsheetDatabase: スプレッドシートIDが設定されていません');
       return { success: false, message: 'スプレッドシートIDが設定されていません' };
     }
 
+    console.log('initializeSpreadsheetDatabase: スプレッドシートID:', spreadsheetId);
     const manager = new SpreadsheetManager();
     const result = manager.initializeDatabase();
+
+    console.log('initializeSpreadsheetDatabase: 結果:', result.success ? '成功' : '失敗');
+    if (result.success) {
+      console.log('initializeSpreadsheetDatabase: メッセージ:', result.message);
+    } else {
+      console.error('initializeSpreadsheetDatabase: エラーメッセージ:', result.message);
+    }
 
     return result;
   } catch (error) {
@@ -655,21 +773,22 @@ function setupBatchTrigger(): { success: boolean; message: string } {
       return { success: false, message: 'スプレッドシートIDが設定されていません' };
     }
 
-    // 既存のトリガーを削除
+    // 既存のトリガーを削除（両方の関数名をチェック）
     const triggers = ScriptApp.getProjectTriggers();
     triggers.forEach(trigger => {
-      if (trigger.getHandlerFunction() === 'hourlyBatchDataCollection') {
+      const handlerName = trigger.getHandlerFunction();
+      if (handlerName === 'hourlyBatchDataCollection' || handlerName === 'fetchMetricsHourly') {
         ScriptApp.deleteTrigger(trigger);
       }
     });
 
-    // 新しいトリガーを作成
-    ScriptApp.newTrigger('hourlyBatchDataCollection')
+    // 新しいトリガーを作成（fetchMetricsHourlyを使用）
+    ScriptApp.newTrigger('fetchMetricsHourly')
       .timeBased()
       .everyHours(1)
       .create();
 
-    return { success: true, message: '1時間毎のバッチ処理トリガーを設定しました' };
+    return { success: true, message: '1時間毎のバッチ処理トリガーを設定しました（fetchMetricsHourly）' };
   } catch (error) {
     console.error('バッチトリガー設定エラー:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -684,14 +803,39 @@ function getBatchTriggerStatus(): { success: boolean; data?: any; message?: stri
   try {
     const triggers = ScriptApp.getProjectTriggers();
     const batchTriggers = triggers.filter(
-      trigger => trigger.getHandlerFunction() === 'hourlyBatchDataCollection'
+      trigger => {
+        const handlerName = trigger.getHandlerFunction();
+        return handlerName === 'hourlyBatchDataCollection' || handlerName === 'fetchMetricsHourly';
+      }
     );
+
+    // 詳細なトリガー情報を取得
+    const triggerDetails = batchTriggers.map(trigger => {
+      return {
+        handlerFunction: trigger.getHandlerFunction(),
+        triggerSource: trigger.getTriggerSource(),
+        eventType: trigger.getEventType(),
+        uniqueId: trigger.getUniqueId()
+      };
+    });
+
+    // 全てのトリガーも取得（デバッグ用）
+    const allTriggers = triggers.map(trigger => {
+      return {
+        handlerFunction: trigger.getHandlerFunction(),
+        triggerSource: trigger.getTriggerSource(),
+        eventType: trigger.getEventType(),
+        uniqueId: trigger.getUniqueId()
+      };
+    });
 
     return {
       success: true,
       data: {
         isActive: batchTriggers.length > 0,
-        triggerCount: batchTriggers.length
+        triggerCount: batchTriggers.length,
+        batchTriggers: triggerDetails,
+        allTriggers: allTriggers
       }
     };
   } catch (error) {
@@ -710,7 +854,8 @@ function removeBatchTrigger(): { success: boolean; message: string } {
     let removedCount = 0;
 
     triggers.forEach(trigger => {
-      if (trigger.getHandlerFunction() === 'hourlyBatchDataCollection') {
+      const handlerName = trigger.getHandlerFunction();
+      if (handlerName === 'hourlyBatchDataCollection' || handlerName === 'fetchMetricsHourly') {
         ScriptApp.deleteTrigger(trigger);
         removedCount++;
       }
@@ -1158,6 +1303,557 @@ function getBatchExecutionStatusReal(): { success: boolean; data?: any; message?
 }
 
 /**
+ * 時刻を1時間単位に丸める
+ */
+function truncateToHour(date: Date): Date {
+  const d = new Date(date);
+  d.setMinutes(0, 0, 0);
+  return d;
+}
+
+/**
+ * Threads APIから投稿を取得してpostsシートに追加・更新
+ */
+function addOrUpdatePosts(): { success: boolean; message: string; addedCount: number; updatedCount: number } {
+  try {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      return { success: false, message: 'APIキーが設定されていません', addedCount: 0, updatedCount: 0 };
+    }
+
+    const spreadsheetId = getSpreadsheetId();
+    if (!spreadsheetId) {
+      return { success: false, message: 'スプレッドシートIDが設定されていません', addedCount: 0, updatedCount: 0 };
+    }
+
+    // Threads APIから投稿一覧を取得（最大100件）
+    console.log('Threads APIから投稿を取得中...');
+    const postsResult = fetchUserPostsWithRetry(apiKey, 100);
+    if (!postsResult.success || !postsResult.data) {
+      return { success: false, message: '投稿一覧の取得に失敗しました', addedCount: 0, updatedCount: 0 };
+    }
+
+    const allApiPosts = Array.isArray(postsResult.data) ? postsResult.data : [];
+    console.log(`APIから取得した投稿総数: ${allApiPosts.length}件`);
+
+    // 7日前までの投稿をフィルタリング
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoTimestamp = Math.floor(sevenDaysAgo.getTime() / 1000);
+    
+    const apiPosts = allApiPosts.filter((post: any) => {
+      if (!post.timestamp) return false;
+      // timestampはISO8601形式の文字列またはUnixタイムスタンプの可能性がある
+      let postTimestamp: number;
+      if (typeof post.timestamp === 'string') {
+        postTimestamp = Math.floor(new Date(post.timestamp).getTime() / 1000);
+      } else {
+        postTimestamp = post.timestamp;
+      }
+      return postTimestamp >= sevenDaysAgoTimestamp;
+    });
+    
+    console.log(`7日前までの投稿: ${apiPosts.length}件`);
+
+    // スプレッドシートを開く
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    let postsSheet = spreadsheet.getSheetByName('posts');
+    
+    // postsシートが存在しない場合は作成
+    if (!postsSheet) {
+      console.log('postsシートが見つからないため作成します');
+      try {
+        const manager = new SpreadsheetManager();
+        manager.createPostsMasterTable();
+        postsSheet = spreadsheet.getSheetByName('posts');
+        if (!postsSheet) {
+          return { success: false, message: 'postsシートの作成に失敗しました', addedCount: 0, updatedCount: 0 };
+        }
+        console.log('postsシートを作成しました');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('postsシート作成エラー:', errorMessage);
+        return { success: false, message: 'postsシートの作成に失敗しました: ' + errorMessage, addedCount: 0, updatedCount: 0 };
+      }
+    }
+
+    // 既存の投稿IDを取得
+    const existingData = postsSheet.getLastRow() > 1 ? postsSheet.getRange(2, 1, postsSheet.getLastRow() - 1, 1).getValues() : [];
+    const existingPostIds = new Set(existingData.map(row => row[0]));
+
+    let addedCount = 0;
+    let updatedCount = 0;
+    const now = new Date();
+
+    // 各投稿を処理
+    for (const post of apiPosts) {
+      const postId = post.id;
+      const platform = 'threads';
+      const accountId = post.username || 'unknown';
+      const postedAt = post.timestamp;
+      const content = post.text || '';
+      const url = post.permalink || '';
+      const charCount = content.length;
+      const mediaType = post.media_type || 'TEXT';
+      const hashtags = extractHashtags(content);
+
+      if (existingPostIds.has(postId)) {
+        // 既存投稿を更新（updated_atのみ更新）
+        const rowIndex = findPostRow(postsSheet, postId);
+        if (rowIndex !== null) {
+          postsSheet.getRange(rowIndex, 11).setValue(now); // K列: updated_at
+          updatedCount++;
+        }
+      } else {
+        // 新規投稿を追加
+        postsSheet.appendRow([
+          postId,           // A: post_id
+          platform,         // B: platform
+          accountId,        // C: account_id
+          postedAt,         // D: posted_at
+          content,          // E: content
+          url,              // F: url
+          charCount,        // G: char_count
+          mediaType,        // H: media_type
+          hashtags,         // I: hashtags
+          now,              // J: created_at
+          now               // K: updated_at
+        ]);
+        addedCount++;
+      }
+    }
+
+    const message = `7日前までの投稿: ${apiPosts.length}件（追加${addedCount}件, 更新${updatedCount}件）`;
+    console.log(`投稿マスタ更新完了: ${message}`);
+    return { 
+      success: true, 
+      message: message, 
+      addedCount, 
+      updatedCount 
+    };
+
+  } catch (error) {
+    console.error('投稿マスタ更新エラー:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return { success: false, message: errorMessage, addedCount: 0, updatedCount: 0 };
+  }
+}
+
+/**
+ * postsシート内で指定したpost_idの行番号を検索
+ */
+function findPostRow(sheet: GoogleAppsScript.Spreadsheet.Sheet, postId: string): number | null {
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === postId) {
+      return i + 1; // 1-indexed
+    }
+  }
+  return null;
+}
+
+/**
+ * テキストからハッシュタグを抽出
+ */
+function extractHashtags(text: string): string {
+  const hashtags = text.match(/#[\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+/g);
+  return hashtags ? hashtags.join(',') : '';
+}
+
+/**
+ * 過去N日以内の投稿を取得（postsシートから）
+ */
+function getRecentPosts(days: number): any[] {
+  try {
+    const spreadsheetId = getSpreadsheetId();
+    if (!spreadsheetId) {
+      console.error('スプレッドシートIDが設定されていません');
+      return [];
+    }
+
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    let postsSheet = spreadsheet.getSheetByName('posts');
+    
+    // postsシートが存在しない場合は作成
+    if (!postsSheet) {
+      console.log('postsシートが見つからないため作成します');
+      try {
+        const manager = new SpreadsheetManager();
+        manager.createPostsMasterTable();
+        postsSheet = spreadsheet.getSheetByName('posts');
+        if (!postsSheet) {
+          console.error('postsシートの作成に失敗しました');
+          return [];
+        }
+        console.log('postsシートを作成しました');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('postsシート作成エラー:', errorMessage);
+        return [];
+      }
+    }
+    
+    if (postsSheet.getLastRow() < 2) {
+      console.log('投稿データがありません');
+      return [];
+    }
+
+    const values = postsSheet.getDataRange().getValues();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    
+    const posts = [];
+    for (let i = 1; i < values.length; i++) {
+      const postedAt = new Date(values[i][3]); // D列: posted_at
+      if (postedAt >= cutoffDate) {
+        posts.push({
+          post_id: values[i][0],        // A: post_id
+          platform: values[i][1],       // B: platform
+          account_id: values[i][2],     // C: account_id
+          posted_at: values[i][3],      // D: posted_at
+          content: values[i][4],        // E: content
+          url: values[i][5],            // F: url
+          media_type: values[i][7]      // H: media_type
+        });
+      }
+    }
+    
+    console.log(`過去${days}日間の投稿: ${posts.length}件（postsシートから取得）`);
+    return posts;
+  } catch (error) {
+    console.error('投稿データ取得エラー:', error);
+    return [];
+  }
+}
+
+/**
+ * 既存メトリクス行を検索
+ */
+function findMetricRow(sheet: GoogleAppsScript.Spreadsheet.Sheet, postId: string, capturedAt: Date): number | null {
+  try {
+    const values = sheet.getDataRange().getValues();
+    
+    for (let i = 1; i < values.length; i++) {
+      const rowPostId = values[i][0];
+      const rowCapturedAt = new Date(values[i][1]);
+      
+      if (rowPostId === postId && rowCapturedAt.getTime() === capturedAt.getTime()) {
+        return i + 1; // 1-based index
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('メトリクス行検索エラー:', error);
+    return null;
+  }
+}
+
+/**
+ * 古いメトリクスデータを削除
+ */
+function deleteOldMetrics(sheet: GoogleAppsScript.Spreadsheet.Sheet, retentionDays: number): void {
+  try {
+    const values = sheet.getDataRange().getValues();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+    
+    // 削除対象行を逆順で削除（行番号がずれないように）
+    for (let i = values.length - 1; i >= 1; i--) {
+      const capturedAt = new Date(values[i][1]);
+      if (capturedAt < cutoffDate) {
+        sheet.deleteRow(i + 1);
+      }
+    }
+  } catch (error) {
+    console.error('古いデータ削除エラー:', error);
+  }
+}
+
+/**
+ * 時系列メトリクス収集（1時間ごと）
+ */
+function fetchMetricsHourly(): { success: boolean; message: string; count: number } {
+  const executionId = Utilities.getUuid();
+  const startTime = new Date();
+  
+  console.log(`[${executionId}] 時系列メトリクス収集開始: ${startTime.toISOString()}`);
+  
+  try {
+    const now = new Date();
+    const capturedAt = truncateToHour(now);
+    
+    // 設定確認
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      console.error('APIキーが設定されていません');
+      return { success: false, message: 'APIキーが設定されていません', count: 0 };
+    }
+    
+    const spreadsheetId = getSpreadsheetId();
+    if (!spreadsheetId) {
+      console.error('スプレッドシートIDが設定されていません');
+      return { success: false, message: 'スプレッドシートIDが設定されていません', count: 0 };
+    }
+    
+    // ステップ1: 投稿マスタを更新（Threads APIから最新の投稿を取得してpostsシートに反映）
+    console.log(`[${executionId}] ステップ1: 投稿マスタ更新開始`);
+    const updateResult = addOrUpdatePosts();
+    if (!updateResult.success) {
+      const errorMsg = `投稿マスタの更新に失敗: ${updateResult.message}`;
+      console.error(`[${executionId}] ${errorMsg}`);
+      // エラーでも続行（既存データからメトリクスを取得できる可能性がある）
+      console.warn(`[${executionId}] 投稿マスタ更新失敗ですが、既存データから続行します`);
+    } else {
+      console.log(`[${executionId}] 投稿マスタ更新完了: ${updateResult.message}`);
+    }
+    
+    // ステップ2: 過去7日以内の投稿を取得（postsシートから）
+    console.log(`[${executionId}] ステップ2: メトリクス収集対象の投稿を取得`);
+    const posts = getRecentPosts(7);
+    console.log(`[${executionId}] 過去7日以内の投稿: ${posts.length}件`);
+    
+    if (posts.length === 0) {
+      const msg = '取得対象の投稿がありません。postsシートにデータが存在するか確認してください。';
+      console.log(`[${executionId}] ${msg}`);
+      return { success: false, message: msg, count: 0 };
+    }
+    
+    // 各投稿のメトリクスを取得
+    const metrics: any[] = [];
+    for (let i = 0; i < posts.length; i++) {
+      const post = posts[i];
+      console.log(`[${executionId}] 投稿 ${i + 1}/${posts.length}: ${post.post_id}`);
+      
+      try {
+        // インサイト取得
+        const insightsResult = fetchPostInsightsWithRetry(apiKey, post.post_id, 3);
+        
+        if (!insightsResult.success) {
+          console.warn(`投稿 ${post.post_id} のインサイト取得失敗`);
+          continue;
+        }
+        
+        const insightsData = insightsResult.data as any;
+        
+        // デバッグ: インサイトデータの構造をログ出力
+        console.log(`[${executionId}] 投稿 ${post.post_id} のインサイトデータ:`, JSON.stringify(insightsData));
+        
+        // 投稿からの経過時間を計算
+        const hoursSincePost = Math.floor(
+          (now.getTime() - new Date(post.posted_at).getTime()) / (1000 * 60 * 60)
+        );
+        
+        // メトリクス変換（insightsDataは既に配列の可能性がある）
+        const insightsArray = Array.isArray(insightsData) ? insightsData : (insightsData ? [insightsData] : []);
+        console.log(`[${executionId}] 変換前のインサイト配列:`, JSON.stringify(insightsArray));
+        const convertedMetrics = convertInsightsToMetrics(insightsArray);
+        console.log(`[${executionId}] 変換後のメトリクス:`, JSON.stringify(convertedMetrics));
+        
+        metrics.push({
+          post_id: post.post_id,
+          captured_at: capturedAt,
+          impressions: convertedMetrics.views || 0,
+          likes: convertedMetrics.likes || 0,
+          comments: convertedMetrics.replies || 0,
+          shares: convertedMetrics.reposts || 0,
+          follower_count: 0, // フォロワー数は別途取得が必要
+          account_id: post.account_id,
+          engagement_rate: parseFloat(convertedMetrics.engagementRate || '0'),
+          hours_since_post: hoursSincePost
+        });
+        
+        console.log(`[${executionId}] 投稿 ${post.post_id} メトリクス取得完了`);
+        
+      } catch (error) {
+        console.error(`投稿 ${post.post_id} のメトリクス取得エラー:`, error);
+      }
+      
+      // レート制限対策: 18秒間隔
+      if (i < posts.length - 1) {
+        Utilities.sleep(18000);
+      }
+    }
+    
+    // post_metrics_hourlyシートに保存
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    let metricsSheet = spreadsheet.getSheetByName('post_metrics_hourly');
+    
+    // post_metrics_hourlyシートが存在しない場合は作成
+    if (!metricsSheet) {
+      console.log('post_metrics_hourlyシートが見つからないため作成します');
+      try {
+        const manager = new SpreadsheetManager();
+        manager.createPostMetricsHourlyTable();
+        metricsSheet = spreadsheet.getSheetByName('post_metrics_hourly');
+        if (!metricsSheet) {
+          console.error('post_metrics_hourlyシートの作成に失敗しました');
+          return { success: false, message: 'post_metrics_hourlyシートの作成に失敗しました', count: 0 };
+        }
+        console.log('post_metrics_hourlyシートを作成しました');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('post_metrics_hourlyシート作成エラー:', errorMessage);
+        return { success: false, message: 'post_metrics_hourlyシートの作成に失敗しました: ' + errorMessage, count: 0 };
+      }
+    }
+    
+    // データ保存
+    for (const metric of metrics) {
+      const existingRow = findMetricRow(metricsSheet, metric.post_id, metric.captured_at);
+      
+      if (existingRow === null) {
+        // 新規追加
+        metricsSheet.appendRow([
+          metric.post_id,
+          metric.captured_at,
+          metric.impressions,
+          metric.likes,
+          metric.comments,
+          metric.shares,
+          metric.follower_count,
+          metric.account_id,
+          metric.engagement_rate,
+          metric.hours_since_post
+        ]);
+      } else {
+        // 上書き更新
+        metricsSheet.getRange(existingRow, 1, 1, 10).setValues([[
+          metric.post_id,
+          metric.captured_at,
+          metric.impressions,
+          metric.likes,
+          metric.comments,
+          metric.shares,
+          metric.follower_count,
+          metric.account_id,
+          metric.engagement_rate,
+          metric.hours_since_post
+        ]]);
+      }
+    }
+    
+    // 古いデータを削除
+    deleteOldMetrics(metricsSheet, 7);
+    
+    const endTime = new Date();
+    const executionTime = endTime.getTime() - startTime.getTime();
+    
+    if (metrics.length === 0) {
+      const msg = 'メトリクスの取得に失敗しました。インサイトAPIの権限を確認してください。';
+      console.error(`[${executionId}] ${msg}`);
+      return { success: false, message: msg, count: 0 };
+    }
+    
+    console.log(`[${executionId}] 時系列メトリクス収集完了: ${executionTime}ms, ${metrics.length}件`);
+    
+    return { success: true, message: `${metrics.length}件のメトリクスを収集しました`, count: metrics.length };
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[${executionId}] 時系列メトリクス収集エラー:`, error);
+    return { success: false, message: `エラーが発生しました: ${errorMessage}`, count: 0 };
+  }
+}
+
+/**
+ * 投稿ごとの時系列データを取得
+ */
+function getMetricsByPostId(postId: string): any[] {
+  try {
+    const spreadsheetId = getSpreadsheetId();
+    if (!spreadsheetId) {
+      console.error('スプレッドシートIDが設定されていません');
+      return [];
+    }
+    
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    const sheet = spreadsheet.getSheetByName('post_metrics_hourly');
+    
+    if (!sheet || sheet.getLastRow() < 2) {
+      return [];
+    }
+    
+    const values = sheet.getDataRange().getValues();
+    const result = [];
+    
+    for (let i = 1; i < values.length; i++) {
+      if (values[i][0] === postId) {
+        result.push({
+          postId: values[i][0],
+          capturedAt: values[i][1],
+          impressions: values[i][2],
+          likes: values[i][3],
+          comments: values[i][4],
+          shares: values[i][5],
+          followerCount: values[i][6],
+          accountId: values[i][7],
+          engagementRate: values[i][8],
+          hoursSincePost: values[i][9]
+        });
+      }
+    }
+    
+    // 時刻順にソート
+    result.sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime());
+    
+    return result;
+  } catch (error) {
+    console.error('投稿別メトリクス取得エラー:', error);
+    return [];
+  }
+}
+
+/**
+ * 過去7日分の時系列データを取得
+ */
+function getMetricsForLast7Days(): any[] {
+  try {
+    const spreadsheetId = getSpreadsheetId();
+    if (!spreadsheetId) {
+      return [];
+    }
+    
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    const sheet = spreadsheet.getSheetByName('post_metrics_hourly');
+    
+    if (!sheet || sheet.getLastRow() < 2) {
+      return [];
+    }
+    
+    const values = sheet.getDataRange().getValues();
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    const result = [];
+    
+    for (let i = 1; i < values.length; i++) {
+      const capturedAt = new Date(values[i][1]);
+      
+      if (capturedAt >= sevenDaysAgo) {
+        result.push({
+          postId: values[i][0],
+          capturedAt: capturedAt.toISOString(),
+          impressions: values[i][2],
+          likes: values[i][3],
+          comments: values[i][4],
+          shares: values[i][5],
+          followerCount: values[i][6],
+          accountId: values[i][7],
+          engagementRate: values[i][8],
+          hoursSincePost: values[i][9]
+        });
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('過去7日分メトリクス取得エラー:', error);
+    return [];
+  }
+}
+
+/**
  * 手動実行用のメイン関数（テスト用）
  */
 function main(): void {
@@ -1189,65 +1885,273 @@ function testBatchExecution(): void {
  */
 function getAllSpreadsheetData(): { success: boolean; message?: string; data?: any[] } {
   try {
+    console.log('getAllSpreadsheetData: 開始');
+    const spreadsheetId = getSpreadsheetId();
+    if (!spreadsheetId) {
+      console.error('getAllSpreadsheetData: スプレッドシートIDが設定されていません');
+      return { success: false, message: 'スプレッドシートIDが設定されていません' };
+    }
+
+    console.log('getAllSpreadsheetData: スプレッドシートID取得成功:', spreadsheetId);
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    const postsSheet = spreadsheet.getSheetByName('posts');
+    const metricsSheet = spreadsheet.getSheetByName('post_metrics_hourly');
+    
+    if (!postsSheet) {
+      console.warn('getAllSpreadsheetData: postsシートが見つかりません');
+      return { success: false, message: 'postsシートが見つかりません。データベースを初期化してください。', data: [] };
+    }
+
+    const lastRow = postsSheet.getLastRow();
+    console.log('getAllSpreadsheetData: postsシートの最終行:', lastRow);
+    if (lastRow < 2) {
+      console.warn('getAllSpreadsheetData: postsシートにデータが存在しません');
+      return { success: false, message: 'postsシートにデータが存在しません。データ取得を実行してください。', data: [] };
+    }
+
+    // postsシートからデータを取得
+    const postsData = postsSheet.getRange(2, 1, lastRow - 1, 11).getValues();
+    
+    const result: any[] = [];
+    
+    // 各投稿について最新のメトリクスを取得
+    for (let i = 0; i < postsData.length; i++) {
+      const postRow = postsData[i];
+      const postId = postRow[0]; // A: post_id
+      
+      // 投稿基本情報
+      const postData: any = {
+        id: postId,
+        text: postRow[4] || '',           // E: content
+        timestamp: postRow[3],            // D: posted_at
+        media_type: postRow[7] || 'TEXT', // H: media_type
+        character_count: postRow[6] || 0, // G: char_count
+        insights: {
+          views: 0,
+          likes: 0,
+          replies: 0,
+          reposts: 0,
+          quotes: 0,
+          total_engagement: 0,
+          engagement_rate: 0,
+          follower_count: 0
+        }
+      };
+      
+      // メトリクスシートから最新のメトリクスを取得
+      if (metricsSheet && metricsSheet.getLastRow() >= 2) {
+        const metricsData = metricsSheet.getDataRange().getValues();
+        
+        // 該当する投稿IDの最新メトリクスを検索
+        let latestMetrics: any = null;
+        let latestTime = 0;
+        
+        for (let j = 1; j < metricsData.length; j++) {
+          if (metricsData[j][0] === postId) { // A: post_id
+            const capturedAt = new Date(metricsData[j][1]).getTime(); // B: captured_at
+            if (capturedAt > latestTime) {
+              latestTime = capturedAt;
+              latestMetrics = metricsData[j];
+            }
+          }
+        }
+        
+        // 最新メトリクスがあれば反映
+        if (latestMetrics) {
+          postData.insights = {
+            views: latestMetrics[2] || 0,        // C: impressions
+            likes: latestMetrics[3] || 0,        // D: likes
+            replies: latestMetrics[4] || 0,      // E: comments
+            reposts: latestMetrics[5] || 0,      // F: shares
+            quotes: 0,
+            total_engagement: (latestMetrics[3] || 0) + (latestMetrics[4] || 0) + (latestMetrics[5] || 0),
+            engagement_rate: latestMetrics[8] || 0,  // I: engagement_rate
+            follower_count: latestMetrics[6] || 0    // G: follower_count
+          };
+        }
+      }
+      
+      result.push(postData);
+    }
+
+    // タイムスタンプ順でソート（新しい順）
+    result.sort((a, b) => {
+      const dateA = new Date(a.timestamp).getTime();
+      const dateB = new Date(b.timestamp).getTime();
+      return dateB - dateA;
+    });
+
+    console.log(`✅ getAllSpreadsheetData: postsシートから${result.length}件のデータを取得しました`);
+    if (result.length > 0) {
+      console.log('✅ getAllSpreadsheetData: 最初のデータサンプル:', JSON.stringify(result[0]));
+    }
+    return { success: true, data: result };
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('❌ getAllSpreadsheetData: スプレッドシートデータ取得エラー:', error);
+    console.error('❌ getAllSpreadsheetData: エラー詳細:', errorMessage);
+    return { success: false, message: 'データ取得エラー: ' + errorMessage };
+  }
+}
+
+/**
+ * ThreadsDataシートを削除
+ */
+function deleteThreadsDataSheet(): { success: boolean; message: string } {
+  try {
     const spreadsheetId = getSpreadsheetId();
     if (!spreadsheetId) {
       return { success: false, message: 'スプレッドシートIDが設定されていません' };
     }
 
     const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
-    const dataSheet = spreadsheet.getSheetByName('threads_data');
+    const threadsDataSheet = spreadsheet.getSheetByName('ThreadsData');
     
-    if (!dataSheet) {
-      console.log('threads_dataシートが見つかりません');
-      return { success: true, data: [] };
+    if (!threadsDataSheet) {
+      return { success: true, message: 'ThreadsDataシートは存在しません' };
     }
-
-    const lastRow = dataSheet.getLastRow();
-    if (lastRow < 2) {
-      console.log('データが存在しません');
-      return { success: true, data: [] };
-    }
-
-    // ヘッダー行を取得
-    const headers = dataSheet.getRange(1, 1, 1, dataSheet.getLastColumn()).getValues()[0];
     
-    // データ行を取得
-    const dataRange = dataSheet.getRange(2, 1, lastRow - 1, headers.length);
-    const values = dataRange.getValues();
-
-    // データをオブジェクト配列に変換
-    const data = values.map((row: any[]) => {
-      const obj: any = {};
-      headers.forEach((header: string, index: number) => {
-        obj[header] = row[index];
-      });
-      
-      // insights をパース
-      if (obj.insights && typeof obj.insights === 'string') {
-        try {
-          obj.insights = JSON.parse(obj.insights);
-        } catch (e) {
-          console.error('insights パースエラー:', e);
-          obj.insights = {};
-        }
-      }
-      
-      return obj;
-    });
-
-    // タイムスタンプ順でソート（新しい順）
-    data.sort((a, b) => {
-      const dateA = new Date(a.timestamp).getTime();
-      const dateB = new Date(b.timestamp).getTime();
-      return dateB - dateA;
-    });
-
-    console.log(`✅ スプレッドシートから${data.length}件のデータを取得しました`);
-    return { success: true, data: data };
+    // シートを削除
+    spreadsheet.deleteSheet(threadsDataSheet);
     
+    console.log('✅ ThreadsDataシートを削除しました');
+    return { success: true, message: 'ThreadsDataシートを削除しました' };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('スプレッドシートデータ取得エラー:', error);
-    return { success: false, message: 'データ取得エラー: ' + errorMessage };
+    console.error('ThreadsDataシート削除エラー:', error);
+    return { success: false, message: 'ThreadsDataシート削除エラー: ' + errorMessage };
   }
 }
+
+/**
+ * ThreadsDataシートのデータをpostsとpost_metrics_hourlyシートに移行
+ * 既存のThreadsDataシートのデータを新しいスキーマに変換
+ */
+function migrateThreadsDataToNewSchema(): { success: boolean; message: string; migrated?: number } {
+  try {
+    const spreadsheetId = getSpreadsheetId();
+    if (!spreadsheetId) {
+      return { success: false, message: 'スプレッドシートIDが設定されていません' };
+    }
+
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    
+    // シートの存在確認と作成
+    let postsSheet = spreadsheet.getSheetByName('posts');
+    let metricsSheet = spreadsheet.getSheetByName('post_metrics_hourly');
+    
+    if (!postsSheet || !metricsSheet) {
+      // シートが存在しない場合は初期化
+      const initResult = initializeSpreadsheetDatabase();
+      if (!initResult.success) {
+        return { success: false, message: 'シートの初期化に失敗しました: ' + initResult.message };
+      }
+      postsSheet = spreadsheet.getSheetByName('posts');
+      metricsSheet = spreadsheet.getSheetByName('post_metrics_hourly');
+    }
+    
+    // ThreadsDataシートを取得
+    const threadsDataSheet = spreadsheet.getSheetByName('ThreadsData');
+    if (!threadsDataSheet) {
+      return { success: false, message: 'ThreadsDataシートが見つかりません' };
+    }
+    
+    const lastRow = threadsDataSheet.getLastRow();
+    if (lastRow < 2) {
+      return { success: true, message: '移行するデータがありません', migrated: 0 };
+    }
+    
+    // ThreadsDataシートのデータを取得
+    // 列構成: タイムスタンプ, 投稿ID, 投稿文, 文字数, タイプ, 投稿日時, インプレッション, いいね, 再投稿, 引用, リプライ, エンゲージメント総数, エンゲージメント率, フォロワー数, 取得時刻
+    const threadsData = threadsDataSheet.getRange(2, 1, lastRow - 1, 15).getValues();
+    
+    let migratedPosts = 0;
+    let migratedMetrics = 0;
+    const processedPostIds = new Set<string>();
+    
+    for (let i = 0; i < threadsData.length; i++) {
+      const row = threadsData[i];
+      const postId = String(row[1]); // B: 投稿ID
+      const postText = String(row[2] || ''); // C: 投稿文
+      const charCount = Number(row[3] || 0); // D: 文字数
+      const postType = String(row[4] || 'TEXT_POST'); // E: タイプ
+      const postedAt = row[5]; // F: 投稿日時
+      const impressions = Number(row[6] || 0); // G: インプレッション
+      const likes = Number(row[7] || 0); // H: いいね
+      const reposts = Number(row[8] || 0); // I: 再投稿
+      const quotes = Number(row[9] || 0); // J: 引用
+      const replies = Number(row[10] || 0); // K: リプライ
+      const engagementTotal = Number(row[11] || 0); // L: エンゲージメント総数
+      const engagementRate = Number(row[12] || 0); // M: エンゲージメント率
+      const followerCount = Number(row[13] || 0); // N: フォロワー数
+      const capturedAt = row[14] || row[0]; // O: 取得時刻 または A: タイムスタンプ
+      
+      if (!postId || postId === 'undefined' || postId === 'null') {
+        continue;
+      }
+      
+      // postsシートに追加（重複チェック）
+      if (!processedPostIds.has(postId)) {
+        const existingPostRow = findPostRow(postsSheet!, postId);
+        
+        if (existingPostRow === null) {
+          // 新規追加
+          postsSheet!.appendRow([
+            postId,                    // A: post_id
+            'threads',                 // B: platform
+            '',                        // C: account_id (ThreadsDataにはない)
+            postedAt,                  // D: posted_at
+            postText,                  // E: content
+            '',                        // F: url (ThreadsDataにはない)
+            charCount,                 // G: char_count
+            postType.replace('_POST', ''), // H: media_type
+            '',                        // I: hashtags (ThreadsDataにはない)
+            new Date(),                // J: created_at
+            new Date()                 // K: updated_at
+          ]);
+          migratedPosts++;
+        }
+        
+        processedPostIds.add(postId);
+      }
+      
+      // post_metrics_hourlyシートに追加（重複チェック）
+      const capturedAtDate = capturedAt instanceof Date ? capturedAt : new Date(capturedAt);
+      const existingMetricRow = findMetricRow(metricsSheet!, postId, capturedAtDate);
+      
+      if (existingMetricRow === null) {
+        // 投稿からの経過時間を計算
+        const postedAtDate = postedAt instanceof Date ? postedAt : new Date(postedAt);
+        const hoursSincePost = Math.floor(
+          (capturedAtDate.getTime() - postedAtDate.getTime()) / (1000 * 60 * 60)
+        );
+        
+        metricsSheet!.appendRow([
+          postId,                      // A: post_id
+          capturedAtDate,              // B: captured_at
+          impressions,                 // C: impressions
+          likes,                       // D: likes
+          replies,                     // E: comments
+          reposts + quotes,            // F: shares (再投稿 + 引用)
+          followerCount,               // G: follower_count
+          '',                          // H: account_id (ThreadsDataにはない)
+          engagementRate,              // I: engagement_rate
+          hoursSincePost               // J: hours_since_post
+        ]);
+        migratedMetrics++;
+      }
+    }
+    
+    return {
+      success: true,
+      message: `移行完了: 投稿${migratedPosts}件、メトリクス${migratedMetrics}件`,
+      migrated: migratedPosts + migratedMetrics
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('データ移行エラー:', error);
+    return { success: false, message: 'データ移行エラー: ' + errorMessage };
+  }
+}
+

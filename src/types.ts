@@ -193,3 +193,34 @@ interface SpreadsheetStatistics {
     latest: Date;
   };
 }
+
+// 投稿データ統合テーブルの型定義（1テーブル設計）
+interface PostRecord {
+  post_id: string;          // 投稿ID
+  content: string;          // 投稿本文
+  posted_at: Date;          // 投稿日時
+  captured_at: Date;        // 取得日時
+  likes: number;            // いいね数
+  impressions: number;      // インプレッション数
+  time_category: number;    // 表示カテゴリ（0, 1, 12, 24, 72）
+  replies: number;          // リプライ数
+  reposts: number;          // 再投稿数
+  quotes: number;           // 引用数
+  engagement_rate: string;  // エンゲージメント率（%）
+  created_at: Date;         // レコード作成日時
+  updated_at: Date;         // レコード更新日時
+}
+
+// バッチ処理結果の型定義
+interface BatchProcessResult {
+  success: boolean;
+  message: string;
+  details?: {
+    totalPosts: number;
+    processedCount: number;
+    newRecordCount: number;
+    updatedCount: number;
+    errorCount: number;
+    executionTime: number;
+  };
+}

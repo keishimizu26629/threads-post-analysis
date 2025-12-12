@@ -76,13 +76,39 @@ function fetchPostInsights(
     const response = UrlFetchApp.fetch(`${url}?${buildQueryString(params)}`);
 
     if (response.getResponseCode() !== 200) {
+      const errorText = response.getContentText();
+      console.error(`インサイトAPI HTTPエラー ${response.getResponseCode()} (投稿ID: ${postId}):`, errorText);
       return {
         success: false,
-        message: `HTTP ${response.getResponseCode()}: ${response.getContentText()}`,
+        message: `HTTP ${response.getResponseCode()}: ${errorText}`,
       };
     }
 
-    const result = JSON.parse(response.getContentText());
+    const responseText = response.getContentText();
+    const result = JSON.parse(responseText);
+    
+    // デバッグログ
+    console.log(`インサイトAPIレスポンス (投稿ID: ${postId}):`, responseText);
+    
+    // エラーチェック
+    if (result.error) {
+      console.error('インサイトAPIエラー:', result.error);
+      return { 
+        success: false, 
+        message: `APIエラー: ${result.error.message || JSON.stringify(result.error)}` 
+      };
+    }
+    
+    // データ構造の確認
+    if (result.data && Array.isArray(result.data)) {
+      console.log(`インサイトデータ数: ${result.data.length}件`);
+      result.data.forEach((item: any, index: number) => {
+        console.log(`インサイト[${index}]: name=${item.name}, values=${JSON.stringify(item.values)}`);
+      });
+    } else {
+      console.warn('インサイトデータが配列ではありません:', typeof result.data, result.data);
+    }
+    
     return { success: true, data: result.data || [] };
   } catch (error) {
     console.error('投稿インサイト取得エラー:', error);
@@ -99,7 +125,15 @@ function buildQueryString(params: { [key: string]: string }): string {
 }
 
 // データ変換関数：インサイトをメトリクスに変換
-function convertInsightsToMetrics(insights: object[]): object {
+function convertInsightsToMetrics(insights: object[]): {
+  views: number;
+  likes: number;
+  replies: number;
+  reposts: number;
+  quotes: number;
+  totalEngagement: number;
+  engagementRate: string;
+} {
   const metrics = {
     views: 0,
     likes: 0,

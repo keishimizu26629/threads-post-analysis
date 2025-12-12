@@ -50,17 +50,31 @@ class SpreadsheetManager {
    */
   initializeDatabase(): { success: boolean; message: string } {
     try {
+      console.log('initializeDatabase: 開始');
       if (!this.initializeSpreadsheet()) {
+        console.error('initializeDatabase: スプレッドシートの初期化に失敗');
         return { success: false, message: 'スプレッドシートの初期化に失敗しました' };
       }
 
-      // 各テーブル（シート）を作成
-      this.createThreadsDataTable();
-      this.createPostsMasterTable();
-      this.createSettingsTable();
-      this.createLogsTable();
+      console.log('initializeDatabase: スプレッドシート初期化成功');
 
-      return { success: true, message: 'データベース初期化が完了しました' };
+      // 必要なテーブル（シート）のみを作成
+      // 1. posts - 投稿データ統合テーブル（投稿情報 + 時系列メトリクス）
+      console.log('initializeDatabase: postsシート作成開始');
+      this.createPostsTable();
+      console.log('initializeDatabase: postsシート作成完了');
+      
+      // 2. logs - 実行ログ
+      console.log('initializeDatabase: logsシート作成開始');
+      this.createLogsTable();
+      console.log('initializeDatabase: logsシート作成完了');
+
+      const createdSheets = ['posts', 'logs'];
+      console.log('initializeDatabase: 全てのシート作成完了');
+      return { 
+        success: true, 
+        message: `データベース初期化が完了しました。作成されたシート: ${createdSheets.join(', ')}` 
+      };
     } catch (error) {
       console.error('DB初期化エラー:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -68,97 +82,163 @@ class SpreadsheetManager {
     }
   }
 
+
   /**
-   * threads_dataテーブル（メインデータ）
+   * postsテーブル（投稿データ統合テーブル）
+   * 1つのテーブルで投稿情報と時系列メトリクスを管理
+   * 複合キー: post_id + time_category (UNIQUE)
    */
-  private createThreadsDataTable(): void {
-    const sheetName = 'threads_data';
+  createPostsTable(): void {
+    if (!this.initializeSpreadsheet()) {
+      throw new Error('スプレッドシートの初期化に失敗しました');
+    }
+    const sheetName = 'posts';
     let sheet = this.spreadsheet!.getSheetByName(sheetName);
 
     if (!sheet) {
       sheet = this.spreadsheet!.insertSheet(sheetName);
     }
 
-    // ヘッダー設定
     const headers = [
-      'timestamp',        // A: データ取得日時
-      'post_id',         // B: 投稿ID
-      'post_date',       // C: 投稿日時
-      'post_text',       // D: 投稿文（100文字）
-      'post_type',       // E: 投稿タイプ
-      'impressions',     // F: インプレッション数
-      'likes',           // G: いいね数
+      'post_id',         // A: 投稿ID（複合キーの一部）
+      'content',         // B: 投稿本文
+      'posted_at',       // C: 投稿日時
+      'captured_at',     // D: 取得日時
+      'likes',           // E: いいね数
+      'impressions',     // F: インプレッション数（views）
+      'time_category',   // G: 表示カテゴリ（0=最新, 1, 12, 24, 72）複合キーの一部
       'replies',         // H: リプライ数
       'reposts',         // I: 再投稿数
       'quotes',          // J: 引用数
-      'total_engagement', // K: 総エンゲージメント
-      'engagement_rate', // L: エンゲージメント率
-      'follower_count'   // M: フォロワー数
+      'engagement_rate', // K: エンゲージメント率（%）
+      'created_at',      // L: レコード作成日時
+      'updated_at'       // M: レコード更新日時
     ];
 
     this.setupTableHeaders(sheet, headers);
-    console.log('threads_dataテーブル作成完了');
+    
+    // 複合キーの説明をメモとして追加
+    sheet.getRange('A1').setNote('投稿ID（post_id + time_categoryで一意）');
+    sheet.getRange('G1').setNote('0=最新データ（常に更新）, 1/12/24/72=確定値（各時間経過時点のスナップショット）');
+    
+    console.log('postsテーブル作成完了（1テーブル設計）');
   }
 
   /**
-   * posts_masterテーブル（投稿マスター）
+   * 既存レコードを検索（post_id + time_category）
    */
-  private createPostsMasterTable(): void {
-    const sheetName = 'posts_master';
-    let sheet = this.spreadsheet!.getSheetByName(sheetName);
+  findPostRecord(postId: string, timeCategory: number): number | null {
+    try {
+      if (!this.initializeSpreadsheet()) {
+        return null;
+      }
 
-    if (!sheet) {
-      sheet = this.spreadsheet!.insertSheet(sheetName);
+      const sheet = this.spreadsheet!.getSheetByName('posts');
+      if (!sheet) {
+        return null;
+      }
+
+      const lastRow = sheet.getLastRow();
+      if (lastRow <= 1) {
+        return null;
+      }
+
+      // データ範囲を取得（ヘッダー行を除く）
+      const dataRange = sheet.getRange(2, 1, lastRow - 1, 7); // A-G列（post_id～time_category）
+      const values = dataRange.getValues();
+
+      // post_id(A列) + time_category(G列)で検索
+      for (let i = 0; i < values.length; i++) {
+        if (values[i][0] === postId && values[i][6] === timeCategory) {
+          return i + 2; // 実際の行番号（ヘッダー行を考慮）
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('レコード検索エラー:', error);
+      return null;
     }
-
-    const headers = [
-      'post_id',         // A: 投稿ID（主キー）
-      'post_date',       // B: 投稿日時
-      'post_text_full',  // C: 投稿文（全文）
-      'post_type',       // D: 投稿タイプ
-      'media_url',       // E: メディアURL
-      'created_at',      // F: レコード作成日時
-      'is_active'        // G: アクティブフラグ
-    ];
-
-    this.setupTableHeaders(sheet, headers);
-    console.log('posts_masterテーブル作成完了');
   }
 
   /**
-   * settingsテーブル（システム設定）
+   * 投稿データを追加または更新
    */
-  private createSettingsTable(): void {
-    const sheetName = 'settings';
-    let sheet = this.spreadsheet!.getSheetByName(sheetName);
+  upsertPostData(postData: {
+    postId: string;
+    content: string;
+    postedAt: Date;
+    capturedAt: Date;
+    likes: number;
+    impressions: number;
+    timeCategory: number;
+    replies: number;
+    reposts: number;
+    quotes: number;
+  }): boolean {
+    try {
+      if (!this.initializeSpreadsheet()) {
+        console.error('スプレッドシート初期化失敗');
+        return false;
+      }
 
-    if (!sheet) {
-      sheet = this.spreadsheet!.insertSheet(sheetName);
+      const sheet = this.spreadsheet!.getSheetByName('posts');
+      if (!sheet) {
+        console.error('postsシートが見つかりません');
+        return false;
+      }
+
+      // エンゲージメント率を計算
+      const totalEngagement = postData.likes + postData.replies + postData.reposts + postData.quotes;
+      const engagementRate = postData.impressions > 0 
+        ? ((totalEngagement / postData.impressions) * 100).toFixed(2)
+        : '0.00';
+
+      // 既存レコードを検索
+      const existingRow = this.findPostRecord(postData.postId, postData.timeCategory);
+      const now = new Date();
+
+      const rowData = [
+        postData.postId,           // A: post_id
+        postData.content,          // B: content
+        postData.postedAt,         // C: posted_at
+        postData.capturedAt,       // D: captured_at
+        postData.likes,            // E: likes
+        postData.impressions,      // F: impressions
+        postData.timeCategory,     // G: time_category
+        postData.replies,          // H: replies
+        postData.reposts,          // I: reposts
+        postData.quotes,           // J: quotes
+        engagementRate,            // K: engagement_rate
+        existingRow ? sheet.getRange(existingRow, 12).getValue() : now, // L: created_at
+        now                        // M: updated_at
+      ];
+
+      if (existingRow === null) {
+        // 新規レコードを追加
+        sheet.appendRow(rowData);
+        console.log(`新規レコード追加: post_id=${postData.postId}, time_category=${postData.timeCategory}`);
+      } else {
+        // 既存レコードを更新
+        sheet.getRange(existingRow, 1, 1, rowData.length).setValues([rowData]);
+        console.log(`既存レコード更新: post_id=${postData.postId}, time_category=${postData.timeCategory}`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('投稿データ追加/更新エラー:', error);
+      return false;
     }
-
-    // 設定データを直接挿入
-    const settings = [
-      ['setting_key', 'setting_value', 'description'],
-      ['spreadsheet_id', this.spreadsheetId, 'スプレッドシートID'],
-      ['last_batch_run', '', '最終バッチ実行日時'],
-      ['data_retention_days', '90', 'データ保持期間（日）'],
-      ['batch_enabled', 'true', 'バッチ処理有効フラグ'],
-      ['api_rate_limit', '200', 'API呼び出し制限（回/時）']
-    ];
-
-    const range = sheet.getRange(1, 1, settings.length, 3);
-    range.setValues(settings);
-
-    // ヘッダー行のスタイル設定
-    sheet.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#4285f4').setFontColor('white');
-
-    console.log('settingsテーブル作成完了');
   }
+
 
   /**
    * logsテーブル（実行ログ）
    */
-  private createLogsTable(): void {
+  createLogsTable(): void {
+    if (!this.initializeSpreadsheet()) {
+      throw new Error('スプレッドシートの初期化に失敗しました');
+    }
     const sheetName = 'logs';
     let sheet = this.spreadsheet!.getSheetByName(sheetName);
 

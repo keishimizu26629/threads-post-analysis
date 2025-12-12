@@ -376,7 +376,7 @@ class SpreadsheetManager {
 
 | シート名 | 説明 | カラム |
 |---------|------|--------|
-| `posts` | 投稿データ | thread_id, timestamp, text, char_count, media_type, likes_12h, replies_12h, shares_12h, impressions_12h, engagement_rate, likes_24h, replies_24h, shares_24h, impressions_24h, likes_72h, replies_72h, shares_72h, impressions_72h, likes_7d, replies_7d, shares_7d, impressions_7d |
+| `posts` | 投稿データ統合テーブル | post_id, platform, account_id, posted_at, content, url, char_count, media_type, hashtags, time_category, impressions, likes, comments, shares, follower_count, engagement_rate, captured_at, created_at, updated_at |
 | `profile` | プロフィール情報 | date, followers_count, username, profile_url |
 | `config` | システム設定 | key, value, updated_at |
 | `logs` | 実行ログ | timestamp, level, message, error |
@@ -513,80 +513,76 @@ function validateUserId(userId: string): boolean;
 
 ### スプレッドシート構成
 
-#### 🎯 時系列データ収集の設計思想
+#### 🎯 時間区分ベースのデータ収集設計思想
 
-このシステムでは、**投稿ごとのメトリクスを1時間単位でスナップショット保存**する設計を採用しています。
+このシステムでは、**投稿ごとのメトリクスを時間区分（0, 1, 12, 24, 72時間）で管理**する設計を採用しています。
 
-**メリット**:
-- ✅ 時系列グラフが簡単に作成できる
-- ✅ 任意の時点のメトリクスを取得可能
-- ✅ フォロワー数の推移と投稿パフォーマンスの相関分析が可能
-- ✅ 後からBigQuery/Firestoreへの移行が容易
+**設計方針**:
+- ✅ **1つのテーブルで管理**: 投稿情報とメトリクスを統合
+- ✅ **時間区分カラム（time_category）**: 
+  - `0` = 最新データ（常に更新される）
+  - `1` = 投稿1時間後の確定値
+  - `12` = 投稿12時間後の確定値
+  - `24` = 投稿24時間後の確定値
+  - `72` = 投稿72時間後の確定値
+- ✅ **効率的なデータ管理**: 1投稿につき最大5レコード
+- ✅ **シンプルな構造**: 複数シートのJOINが不要
+- ✅ **フロントエンド対応**: `time_category=0`で最新データ一覧表示、特定`post_id`で時系列グラフ表示
 
 **データ保存期間**: 過去7日分（自動削除）
 
+**複合キー**: `post_id` + `time_category` (UNIQUE)
+
 ---
 
-#### シート: `posts`（投稿マスタ）
+#### シート: `posts`（投稿データ統合テーブル）
 
-**役割**: 投稿の基本情報を管理するマスターテーブル
+**役割**: 投稿情報と時系列メトリクスを1つのテーブルで管理
 
 | カラム | 列名 | データ型 | 説明 | 例 |
 |-------|------|---------|------|-----|
-| A | post_id | String | 投稿の一意ID（Threads API） | `1234567890123456789` |
-| B | platform | String | プラットフォーム名 | `threads` |
-| C | account_id | String | アカウントID | `987654321` |
-| D | posted_at | DateTime | 投稿日時（JST） | `2024-11-27 14:30:00` |
-| E | content | String | 投稿テキスト | `こんにちは！今日は...` |
-| F | url | String | 投稿URL | `https://threads.net/@user/post/123...` |
-| G | char_count | Number | 文字数 | `120` |
-| H | media_type | String | メディアタイプ | `TEXT`, `IMAGE`, `VIDEO`, `CAROUSEL` |
-| I | hashtags | String | ハッシュタグ（カンマ区切り） | `#マーケティング,#SNS` |
-| J | created_at | DateTime | データ作成日時 | `2024-11-27 14:35:00` |
-| K | updated_at | DateTime | データ更新日時 | `2024-11-27 15:00:00` |
+| A | post_id | String | 投稿ID（複合キーの一部） | `1234567890123456789` |
+| B | content | String | 投稿本文 | `こんにちは！今日は...` |
+| C | posted_at | DateTime | 投稿日時（JST） | `2024-12-11 10:00:00` |
+| D | captured_at | DateTime | 取得日時 | `2024-12-11 11:00:00` |
+| E | likes | Number | いいね数 | `45` |
+| F | impressions | Number | インプレッション数（views） | `1250` |
+| G | time_category | Number | 表示カテゴリ（複合キーの一部）<br>0=最新データ, 1/12/24/72=各時点の確定値 | `0` |
+| H | replies | Number | リプライ数 | `8` |
+| I | reposts | Number | 再投稿数 | `3` |
+| J | quotes | Number | 引用数 | `1` |
+| K | engagement_rate | String | エンゲージメント率（%） | `4.48` |
+| L | created_at | DateTime | レコード作成日時 | `2024-12-11 11:00:00` |
+| M | updated_at | DateTime | レコード更新日時 | `2024-12-11 12:00:00` |
 
-**インデックス**: `post_id` (PRIMARY KEY)
+**複合キー**: `post_id` + `time_category` (UNIQUE)
+
+**1投稿あたりのレコード数**: 最大5レコード
+- `time_category=0`: 最新データ（常に更新）
+- `time_category=1`: 投稿1時間後の確定値
+- `time_category=12`: 投稿12時間後の確定値
+- `time_category=24`: 投稿24時間後の確定値
+- `time_category=72`: 投稿72時間後の確定値
+
+**時間区分の定義**:
+- **0（リアルタイム）**: 投稿直後、または1, 12, 24, 72時間に該当しない場合
+- **1**: 投稿から1時間経過時点
+- **12**: 投稿から12時間経過時点
+- **24**: 投稿から24時間経過時点
+- **72**: 投稿から72時間経過時点
+
+**データ更新ロジック**:
+1. 投稿一覧を取得し、各投稿の投稿日時を確認
+2. 現在時刻から投稿日時を引き、経過時間を計算
+3. 経過時間が1, 12, 24, 72時間のいずれかに該当する場合:
+   - 該当する時間区分のレコードが存在するか確認（`post_id` + `time_category`）
+   - 存在する場合は更新、存在しない場合は新規追加
+4. 経過時間が1, 12, 24, 72時間に該当しない場合:
+   - `time_category = 0` のレコードを更新（存在しない場合は追加）
 
 **データ追加タイミング**: 
-- 1時間ごとの定期実行時に新規投稿を検知
+- 1時間ごとの定期実行時に新規投稿を検知し、メトリクスを取得
 - 手動で「分析実行」ボタンを押した時
-
----
-
-#### シート: `post_metrics_hourly`（時系列投稿メトリクス）
-
-**役割**: 投稿ごとのメトリクスを1時間単位でスナップショット保存
-
-| カラム | 列名 | データ型 | 説明 | 例 |
-|-------|------|---------|------|-----|
-| A | post_id | String | postsテーブルの外部キー | `1234567890123456789` |
-| B | captured_at | DateTime | 取得時刻（1時間単位に丸める） | `2024-11-27 15:00:00` |
-| C | impressions | Number | 累計インプレッション数 | `1250` |
-| D | likes | Number | いいね数 | `45` |
-| E | comments | Number | コメント数（リプライ数） | `8` |
-| F | shares | Number | シェア数（引用投稿数） | `3` |
-| G | follower_count | Number | 取得時点のフォロワー数 | `1520` |
-| H | account_id | String | アカウントID（JOIN対策） | `987654321` |
-| I | engagement_rate | Number | エンゲージメント率（%） | `4.48` |
-| J | hours_since_post | Number | 投稿からの経過時間 | `12` |
-
-**複合キー**: `post_id` + `captured_at` (UNIQUE)
-
-**データ追加タイミング**: 
-- **1時間ごとの定期実行**: 過去7日以内の全投稿の最新メトリクスを取得
-- **重複チェック**: 同じ `post_id` × `captured_at` が存在する場合は上書き
-
-**データ保存期間**: 過去7日分（7日より古いデータは自動削除）
-
-**時刻の丸め処理**:
-```javascript
-// 2024-11-27 14:35:23 → 2024-11-27 14:00:00
-function truncateToHour(date) {
-  const d = new Date(date);
-  d.setMinutes(0, 0, 0);
-  return d;
-}
-```
 
 ---
 
@@ -648,139 +644,112 @@ function truncateToHour(date) {
 
 ### データアクセスパターン
 
-#### 1. 時系列メトリクス収集（1時間ごと）
+#### 1. 時間区分ベースのメトリクス収集（1時間ごと）
 
 **処理フロー**:
 ```typescript
 function fetchMetricsHourly(): { success: boolean; message: string; count: number } {
   try {
     const now = new Date();
-    const capturedAt = truncateToHour(now); // 時刻を1時間単位に丸める
+    const sheet = SpreadsheetApp.getActive().getSheetByName('posts');
     
-    // 1. 過去7日以内の投稿を取得
-    const posts = getRecentPosts(7);
+    // 1. Threads APIから投稿一覧を取得
+    const threads = threadsApi.getThreads(100);
     
-    // 2. 各投稿のメトリクスをAPI取得
-    const metrics: any[] = [];
-    for (const post of posts) {
-      const insights = threadsApi.getThreadInsights(post.post_id);
+    let updatedCount = 0;
+    
+    // 2. 各投稿を順に確認
+    for (const thread of threads.data) {
+      const postedAt = new Date(thread.timestamp);
       
-      // 投稿からの経過時間を計算
+      // 投稿からの経過時間を計算（時間単位）
       const hoursSincePost = Math.floor(
-        (now.getTime() - new Date(post.posted_at).getTime()) / (1000 * 60 * 60)
+        (now.getTime() - postedAt.getTime()) / (1000 * 60 * 60)
       );
       
-      metrics.push({
-        post_id: post.post_id,
-        captured_at: capturedAt,
-        impressions: insights.impressions,
-        likes: insights.likes_count,
-        comments: insights.replies_count,
-        shares: insights.reposts_count,
-        follower_count: insights.follower_count,
-        account_id: post.account_id,
-        engagement_rate: dataProcessor.calculateEngagementRate(
+      // 時間区分を決定
+      let timeCategory: number;
+      if (hoursSincePost >= 1 && hoursSincePost < 2) {
+        timeCategory = 1;
+      } else if (hoursSincePost >= 12 && hoursSincePost < 13) {
+        timeCategory = 12;
+      } else if (hoursSincePost >= 24 && hoursSincePost < 25) {
+        timeCategory = 24;
+      } else if (hoursSincePost >= 72 && hoursSincePost < 73) {
+        timeCategory = 72;
+      } else {
+        timeCategory = 0; // リアルタイムまたは該当しない場合
+      }
+      
+      // 3. メトリクスをAPI取得
+      const insights = threadsApi.getThreadInsights(thread.id);
+      
+      // 4. 既存レコードを検索（post_id + time_category）
+      const existingRow = findPostRow(sheet, thread.id, timeCategory);
+      
+      const rowData = [
+        thread.id,                                    // post_id
+        'threads',                                    // platform
+        thread.account_id,                            // account_id
+        postedAt,                                     // posted_at
+        thread.text,                                  // content
+        `https://threads.net/@${thread.username}/post/${thread.id}`, // url
+        dataProcessor.countCharacters(thread.text),   // char_count
+        thread.media_type,                            // media_type
+        extractHashtags(thread.text).join(','),      // hashtags
+        timeCategory,                                 // time_category
+        insights.impressions,                         // impressions
+        insights.likes_count,                         // likes
+        insights.replies_count,                       // comments
+        insights.reposts_count,                       // shares
+        insights.follower_count,                      // follower_count
+        dataProcessor.calculateEngagementRate(
           insights.likes_count,
           insights.replies_count,
           insights.reposts_count,
           insights.impressions
-        ),
-        hours_since_post: hoursSincePost
-      });
+        ),                                           // engagement_rate
+        now,                                          // captured_at
+        existingRow ? null : now,                     // created_at（既存の場合は更新しない）
+        now                                           // updated_at
+      ];
+      
+      if (existingRow === null) {
+        // 新規レコードを追加
+        sheet.appendRow(rowData);
+        updatedCount++;
+      } else {
+        // 既存レコードを更新（created_atは保持）
+        const existingCreatedAt = sheet.getRange(existingRow, 18).getValue(); // R列: created_at
+        rowData[17] = existingCreatedAt; // created_atを保持
+        sheet.getRange(existingRow, 1, 1, 19).setValues([rowData]);
+        updatedCount++;
+      }
       
       // レート制限対策: 18秒間隔
       Utilities.sleep(18000);
     }
     
-    // 3. post_metrics_hourlyシートに保存（重複チェック付き）
-    const sheet = SpreadsheetApp.getActive().getSheetByName('post_metrics_hourly');
+    // 5. 7日より古いデータを削除
+    deleteOldPosts(sheet, 7);
     
-    for (const metric of metrics) {
-      // 既存データチェック（post_id × captured_at）
-      const existingRow = findMetricRow(sheet, metric.post_id, metric.captured_at);
-      
-      if (existingRow === null) {
-        // 新規追加
-        sheet.appendRow([
-          metric.post_id,
-          metric.captured_at,
-          metric.impressions,
-          metric.likes,
-          metric.comments,
-          metric.shares,
-          metric.follower_count,
-          metric.account_id,
-          metric.engagement_rate,
-          metric.hours_since_post
-        ]);
-      } else {
-        // 上書き更新
-        sheet.getRange(existingRow, 1, 1, 10).setValues([[
-          metric.post_id,
-          metric.captured_at,
-          metric.impressions,
-          metric.likes,
-          metric.comments,
-          metric.shares,
-          metric.follower_count,
-          metric.account_id,
-          metric.engagement_rate,
-          metric.hours_since_post
-        ]]);
-      }
-    }
+    // 6. ログ記録
+    logInfo(`メトリクス収集完了: ${updatedCount}件`, 'fetchMetricsHourly');
     
-    // 4. 7日より古いデータを削除
-    deleteOldMetrics(sheet, 7);
-    
-    // 5. ログ記録
-    logInfo(`時系列データ収集完了: ${metrics.length}件`, 'fetchMetricsHourly');
-    
-    return { success: true, message: `${metrics.length}件のメトリクスを収集しました`, count: metrics.length };
+    return { success: true, message: `${updatedCount}件のメトリクスを収集しました`, count: updatedCount };
     
   } catch (error) {
-    logError('時系列メトリクス収集エラー', error, 'fetchMetricsHourly');
+    logError('メトリクス収集エラー', error, 'fetchMetricsHourly');
     return { success: false, message: `エラー: ${error.message}`, count: 0 };
   }
 }
 
-// 時刻を1時間単位に丸める
-function truncateToHour(date: Date): Date {
-  const d = new Date(date);
-  d.setMinutes(0, 0, 0);
-  return d;
-}
-
-// 過去N日以内の投稿を取得
-function getRecentPosts(days: number): any[] {
-  const sheet = SpreadsheetApp.getActive().getSheetByName('posts');
-  const values = sheet.getDataRange().getValues();
-  
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - days);
-  
-  const posts = [];
-  for (let i = 1; i < values.length; i++) {
-    const postedAt = new Date(values[i][3]); // D列: posted_at
-    if (postedAt >= cutoffDate) {
-      posts.push({
-        post_id: values[i][0],
-        platform: values[i][1],
-        account_id: values[i][2],
-        posted_at: values[i][3]
-      });
-    }
-  }
-  
-  return posts;
-}
-
-// 既存メトリクス行を検索
-function findMetricRow(sheet: GoogleAppsScript.Spreadsheet.Sheet, postId: string, capturedAt: Date): number | null {
+// 既存レコードを検索（post_id + time_category）
+function findPostRow(sheet: GoogleAppsScript.Spreadsheet.Sheet, postId: string, timeCategory: number): number | null {
   const values = sheet.getDataRange().getValues();
   
   for (let i = 1; i < values.length; i++) {
-    if (values[i][0] === postId && values[i][1].getTime() === capturedAt.getTime()) {
+    if (values[i][0] === postId && values[i][9] === timeCategory) { // A列: post_id, J列: time_category
       return i + 1; // 1-based index
     }
   }
@@ -789,114 +758,76 @@ function findMetricRow(sheet: GoogleAppsScript.Spreadsheet.Sheet, postId: string
 }
 
 // 古いデータを削除
-function deleteOldMetrics(sheet: GoogleAppsScript.Spreadsheet.Sheet, retentionDays: number): void {
+function deleteOldPosts(sheet: GoogleAppsScript.Spreadsheet.Sheet, retentionDays: number): void {
   const values = sheet.getDataRange().getValues();
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
   
   // 削除対象行を逆順で削除（行番号がずれないように）
   for (let i = values.length - 1; i >= 1; i--) {
-    const capturedAt = new Date(values[i][1]);
-    if (capturedAt < cutoffDate) {
+    const postedAt = new Date(values[i][3]); // D列: posted_at
+    if (postedAt < cutoffDate) {
       sheet.deleteRow(i + 1);
     }
   }
 }
 ```
 
-#### 2. 新規投稿データの追加（投稿マスタ）
+#### 2. 投稿ごとのメトリクス取得（時間区分別）
 
 ```typescript
-function addNewPost(threadData: any): void {
+function getMetricsByPostId(postId: string): any[] {
   const sheet = SpreadsheetApp.getActive().getSheetByName('posts');
-  
-  // 重複チェック
-  const existingRow = findPostByPostId(sheet, threadData.id);
-  if (existingRow !== null) {
-    console.log('投稿は既に存在します:', threadData.id);
-    return;
-  }
-  
-  // 新規追加
-  sheet.appendRow([
-    threadData.id,                                    // post_id
-    'threads',                                        // platform
-    threadData.account_id,                            // account_id
-    threadData.timestamp,                             // posted_at
-    threadData.text,                                  // content
-    `https://threads.net/@${threadData.username}/post/${threadData.id}`, // url
-    dataProcessor.countCharacters(threadData.text),   // char_count
-    threadData.media_type,                            // media_type
-    extractHashtags(threadData.text).join(','),       // hashtags
-    new Date(),                                       // created_at
-    new Date()                                        // updated_at
-  ]);
-}
-```
-
-#### 3. 過去7日分の時系列データ取得（API用）
-
-```typescript
-function getMetricsForLast7Days(): any[] {
-  const sheet = SpreadsheetApp.getActive().getSheetByName('post_metrics_hourly');
   const values = sheet.getDataRange().getValues();
-  
-  const now = new Date();
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   
   const result = [];
   
   for (let i = 1; i < values.length; i++) {
-    const [postId, capturedAt, impressions, likes, comments, shares, followerCount, accountId, engagementRate, hoursSincePost] = values[i];
-    
-    if (capturedAt >= sevenDaysAgo) {
+    if (values[i][0] === postId) { // A列: post_id
       result.push({
-        postId,
-        capturedAt: capturedAt.toISOString(),
-        impressions,
-        likes,
-        comments,
-        shares,
-        followerCount,
-        accountId,
-        engagementRate,
-        hoursSincePost
+        postId: values[i][0],
+        timeCategory: values[i][9],        // J列: time_category
+        impressions: values[i][10],          // K列: impressions
+        likes: values[i][11],                // L列: likes
+        comments: values[i][12],             // M列: comments
+        shares: values[i][13],               // N列: shares
+        followerCount: values[i][14],        // O列: follower_count
+        engagementRate: values[i][15],       // P列: engagement_rate
+        capturedAt: values[i][16]            // Q列: captured_at
       });
     }
   }
+  
+  // 時間区分順にソート（0, 1, 12, 24, 72）
+  result.sort((a, b) => a.timeCategory - b.timeCategory);
   
   return result;
 }
 ```
 
-#### 4. 投稿ごとの時系列データ取得（グラフ表示用）
+#### 3. 特定時間区分のメトリクス取得
 
 ```typescript
-function getMetricsByPostId(postId: string): any[] {
-  const sheet = SpreadsheetApp.getActive().getSheetByName('post_metrics_hourly');
+function getMetricsByTimeCategory(timeCategory: number): any[] {
+  const sheet = SpreadsheetApp.getActive().getSheetByName('posts');
   const values = sheet.getDataRange().getValues();
   
   const result = [];
   
   for (let i = 1; i < values.length; i++) {
-    if (values[i][0] === postId) {
+    if (values[i][9] === timeCategory) { // J列: time_category
       result.push({
         postId: values[i][0],
-        capturedAt: values[i][1],
-        impressions: values[i][2],
-        likes: values[i][3],
-        comments: values[i][4],
-        shares: values[i][5],
-        followerCount: values[i][6],
-        accountId: values[i][7],
-        engagementRate: values[i][8],
-        hoursSincePost: values[i][9]
+        postedAt: values[i][3],
+        content: values[i][4],
+        impressions: values[i][10],
+        likes: values[i][11],
+        comments: values[i][12],
+        shares: values[i][13],
+        engagementRate: values[i][15]
       });
     }
   }
-  
-  // 時刻順にソート
-  result.sort((a, b) => a.capturedAt.getTime() - b.capturedAt.getTime());
   
   return result;
 }
@@ -1029,30 +960,30 @@ function logError(message: string, error: any): void {
 
 ---
 
-### 時系列メトリクス収集（1時間ごと）
+### 時間区分ベースのメトリクス収集（1時間ごと）
 
 #### `fetchMetricsHourly()`の処理フロー
 
 ```
-1. 時刻を1時間単位に丸める
-   └─ 2024-11-27 14:35:23 → 2024-11-27 14:00:00
+1. Threads APIから投稿一覧を取得
+   └─ threadsApi.getThreads(100)
 
-2. 過去7日以内の投稿を取得
-   ├─ postsシートから取得
-   └─ posted_at >= (現在 - 7日)
+2. 各投稿を順に確認
+   ├─ 投稿日時から経過時間を計算
+   └─ 時間区分を決定（0, 1, 12, 24, 72）
 
 3. 各投稿のメトリクスをAPI取得
    ├─ threadsApi.getThreadInsights(post_id)
    ├─ レート制限対策: 18秒間隔（200リクエスト/時間）
    └─ フォロワー数も同時に取得
 
-4. post_metrics_hourlyシートに保存
-   ├─ 重複チェック（post_id × captured_at）
-   ├─ 既存データがあれば上書き
+4. postsシートに保存
+   ├─ 重複チェック（post_id × time_category）
+   ├─ 既存レコードがあれば更新
    └─ なければ新規追加
 
 5. 古いデータの削除
-   ├─ captured_at < (現在 - 7日) のデータを削除
+   ├─ posted_at < (現在 - 7日) のデータを削除
    └─ データ肥大化防止
 
 6. ログ記録

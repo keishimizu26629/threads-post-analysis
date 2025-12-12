@@ -66,12 +66,14 @@ function convertToJavaScript(content) {
 
   // 5. 関数の戻り値型を削除（パラメータより先に処理）
   // function name(): Type { → function name() {
-  content = content.replace(/\)\s*:\s*[^{=]+(\{|=>)/g, ') $1');
+  // より厳密に: 関数名の後ろのコロンと型だけを削除
+  content = content.replace(/(\w+\([^)]*\))\s*:\s*[^{=]+(\{|=>)/g, '$1 $2');
 
   // 6. 変数宣言の型注釈を削除
   // const name: Type = → const name =
-  content = content.replace(/(let|const|var)\s+(\w+)\s*:\s*[^=;]+\s*=/g, '$1 $2 =');
-  content = content.replace(/(let|const|var)\s+(\w+)\s*:\s*[^;]+;/g, '$1 $2;');
+  // より厳密なパターンマッチングを使用
+  content = content.replace(/(let|const|var)\s+(\w+)\s*:\s*[A-Za-z_][A-Za-z0-9_.<>[\]|&\s]*\s*=/g, '$1 $2 =');
+  content = content.replace(/(let|const|var)\s+(\w+)\s*:\s*[A-Za-z_][A-Za-z0-9_.<>[\]|&\s]*;/g, '$1 $2;');
 
   // 7. 関数パラメータの型注釈を削除
   // (param: Type) → (param)
@@ -90,6 +92,9 @@ function convertToJavaScript(content) {
 
   // 10. "use strict"を削除
   content = content.replace(/["']use strict["'];\s*/g, '');
+
+  // Note: オブジェクトの短縮記法は変換しない
+  // TypeScriptソース側で明示的に { key: value } 形式を使用すること
 
   return content;
 }

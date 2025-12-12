@@ -4,7 +4,8 @@
   "description": "Threads投稿分析ツール",
   "main": "index.js",
   "scripts": {
-    "build": "node scripts/manual-build.js",
+    "build": "tsc && node scripts/post-build-tsc.js",
+    "build:manual": "node scripts/manual-build.js",
     "dev": "npx tsc --watch",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
